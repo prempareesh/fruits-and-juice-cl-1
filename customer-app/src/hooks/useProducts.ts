@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, safeQuery } from '../../lib/supabase';
 import { Product } from '../types';
 import { monitor } from '../services/MonitoringService';
 import { ProductService } from '../services/ProductService';
@@ -32,11 +32,13 @@ export const useProducts = () => {
         const from = pageRef.current * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const { data, error: supabaseError } = await supabase
-          .from('products')
-          .select('*')
-          .range(from, to)
-          .order('id', { ascending: true });
+        const { data, error: supabaseError } = await safeQuery(() => 
+          supabase
+            .from('products')
+            .select('*')
+            .range(from, to)
+            .order('id', { ascending: true })
+        );
 
         if (supabaseError) throw supabaseError;
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../src/theme/tokens';
+import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../../theme/tokens';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { LucideIcon } from 'lucide-react-native';
 

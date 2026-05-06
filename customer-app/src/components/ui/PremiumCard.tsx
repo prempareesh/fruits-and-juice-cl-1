@@ -25,7 +25,6 @@ import { ProductService } from '../../services/ProductService';
 import { Star, ShoppingCart, Heart } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - SPACING.md * 3) / 2;
 
 interface PremiumCardProps {
   id: string;
@@ -67,6 +66,8 @@ const PremiumCard: React.FC<PremiumCardProps> = ({
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
 
+  const CARD_WIDTH = (windowWidth - SPACING.md * (isLargeScreen ? 4 : 3)) / (isLargeScreen ? 3 : 2);
+
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
@@ -96,9 +97,9 @@ const PremiumCard: React.FC<PremiumCardProps> = ({
 
   return (
     <Animated.View 
-      entering={FadeInUp.delay(index * 100).springify().damping(12)}
+      entering={FadeInUp.delay(Math.min((index % 10) * 100, 1000)).springify().damping(12)}
       layout={Layout.springify()}
-      style={[styles.container, animatedStyle]}
+      style={[styles.container, { width: isWeb ? 'auto' : CARD_WIDTH }, animatedStyle]}
     >
       <Pressable
         onPress={onPress}

@@ -48,11 +48,36 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 /**
+ * Helper to execute Supabase queries with exponential backoff retries
+ * Essential for mobile apps on unstable networks.
+ */
+export const safeQuery = async <T = any>(queryFn: () => PromiseLike<any>, retries = 3, delay = 500): Promise<{ data: T | null; error: any }> => {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const result = await queryFn();
+      if (result.error) throw result.error;
+      return result;
+    } catch (err: any) {
+      lastError = err;
+      const isNetworkError = err.message?.toLowerCase().includes('network') || 
+                            err.message?.toLowerCase().includes('fetch');
+      
+      if (!isNetworkError || i === retries - 1) break;
+      
+      const backoff = delay * Math.pow(2, i);
+      await new Promise(resolve => setTimeout(resolve, backoff));
+    }
+  }
+  return { data: null, error: lastError };
+};
+
+/**
  * Health check to verify connection to Supabase
  */
 export const checkConnection = async () => {
   try {
-    const { error } = await supabase.from('products').select('id').limit(1);
+    const { error } = await safeQuery(() => supabase.from('products').select('id').limit(1));
     return !error;
   } catch {
     return false;

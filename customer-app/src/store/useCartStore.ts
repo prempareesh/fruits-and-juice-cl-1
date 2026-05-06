@@ -28,8 +28,7 @@ interface CartStore {
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   getTotal: () => number;
-  placeOrder: (userId: string, address: string, paymentType: 'online' | 'cod') => Promise<string | null>;
-  reconcilePendingOrder: (paymentData: any) => Promise<boolean>;
+  placeOrder: (userId: string, address: string, paymentType: 'online' | 'cod', initialStatus?: string) => Promise<string | null>;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -86,86 +85,41 @@ export const useCartStore = create<CartStore>()(
       })),
       clearCart: () => set({ items: [] }),
       getTotal: () => get().items.reduce((acc, item) => acc + item.subtotal, 0),
-      placeOrder: async (userId, address, paymentType) => {
+      placeOrder: async (userId, address, paymentType, initialStatus = 'received') => {
         return await monitor.trackPerformance('PlaceOrder', async () => {
           const { items, getTotal } = get();
           try {
-            const { data: order, error: orderError } = await supabase
-              .from('orders')
-              .insert({
-                user_id: userId,
-                total_amount: getTotal(),
-                status: 'received',
-                payment_type: paymentType,
-                address: address,
-              })
-              .select()
-              .single();
-
-            if (orderError) throw orderError;
-
-            const orderItems = items.map(item => ({
-              order_id: order.id,
+            // Transform items for the RPC
+            const rpcItems = items.map(item => ({
               product_id: item.productId,
               variant_id: item.variantId,
               quantity: item.quantity,
+              category: item.category,
               price_at_time: item.price,
               subtotal: item.subtotal
             }));
 
-            const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-            if (itemsError) throw itemsError;
+            const { data, error } = await supabase.rpc('place_order_v1', {
+              p_user_id: userId,
+              p_address: address,
+              p_total_amount: getTotal(),
+              p_payment_type: paymentType,
+              p_items: rpcItems,
+              p_initial_status: initialStatus
+            });
+
+            if (error) throw error;
+            if (!data.success) throw new Error(data.message);
 
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            // In production, we keep items until redirect success
-            return order.id;
+            return data.order_id;
           } catch (error: any) {
             monitor.log('ERROR', 'Checkout', 'Order placement failed', { error });
-            Alert.alert('Checkout Error', error.message || 'Connection failed.');
+            Alert.alert('Order Failed', error.message || 'Inventory check or connection failed.');
             return null;
           }
         });
       },
-      reconcilePendingOrder: async (paymentData) => {
-        return await monitor.trackPerformance('ReconcileOrder', async () => {
-          const { items } = get();
-          if (items.length === 0) return false;
-          
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return false;
-
-            // Re-run the order creation logic
-            const { data: order, error } = await supabase.from('orders').insert({
-              user_id: user.id,
-              total_amount: get().getTotal(),
-              status: 'received',
-              payment_type: 'online',
-              payment_id: paymentData.razorpay_payment_id,
-              address: user.user_metadata?.permanent_address || 'Reconciled Address'
-            }).select().single();
-
-            if (error) throw error;
-
-            const orderItems = items.map(item => ({
-              order_id: order.id,
-              product_id: item.productId,
-              variant_id: item.variantId,
-              quantity: item.quantity,
-              price_at_time: item.price,
-              subtotal: item.subtotal
-            }));
-
-            await supabase.from('order_items').insert(orderItems);
-            
-            set({ items: [] });
-            monitor.log('INFO', 'Reconciliation', 'Successfully recovered ghost order', { orderId: order.id });
-            return true;
-          } catch (err) {
-            monitor.log('ERROR', 'Reconciliation', 'Manual recovery failed', { err });
-            return false;
-          }
-        });
       },
     }),
     {

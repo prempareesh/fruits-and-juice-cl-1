@@ -26,8 +26,8 @@ const BACKEND_URL = BASE_API_URL.endsWith('/api/payment') ? BASE_API_URL : `${BA
 export default function PaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { amount, name, email, contact } = params;
-  const { placeOrder, clearCart } = useCartStore();
+  const { amount, name, email, contact, orderId: orderIdFromParams } = params;
+  const { clearCart } = useCartStore();
   const toastRef = useRef<ToastHandle>(null);
 
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -79,20 +79,27 @@ export default function PaymentScreen() {
         throw new Error('Signature verification failed');
       }
 
-      // Step B: Atomic Database Insertion
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Session expired');
+      // Step B: Update Existing Order Status with Payment Details
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ 
+          status: 'received',
+          payment_status: 'paid',
+          razorpay_order_id: razorpayData.razorpay_order_id,
+          razorpay_payment_id: razorpayData.razorpay_payment_id,
+          razorpay_signature: razorpayData.razorpay_signature
+        })
+        .eq('id', orderIdFromParams);
+      
+      if (updateError) throw updateError;
 
-      const address = user.user_metadata?.permanent_address || 'Current Location';
-      const dbOrderId = await placeOrder(user.id, address, 'online');
-
-      if (!dbOrderId) throw new Error('Order creation failed');
+      const finalOrderId = orderIdFromParams as string;
 
       // SUCCESS: Clear cart and redirect
       clearCart();
       router.replace({
         pathname: '/(tabs)/orders',
-        params: { success: 'true', orderId: dbOrderId }
+        params: { success: 'true', orderId: finalOrderId }
       });
 
     } catch (err: any) {
@@ -259,5 +266,5 @@ const styles = StyleSheet.create({
   retryBtnText: { color: '#fff', fontWeight: 'bold' },
   webViewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   headerTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.darkText },
-  iframe: { width: '100%', height: '100%', border: 'none' },
+  iframe: { width: '100%', height: '100%', borderWidth: 0 },
 });

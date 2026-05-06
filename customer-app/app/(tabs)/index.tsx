@@ -69,21 +69,6 @@ export default function HomeScreen() {
       setActiveCategory(paramCategory);
     }
   }, [paramCategory]);
-  useEffect(() => {
-    // Realtime subscription for product updates
-    const channel = supabase
-      .channel('public:products')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        console.log("[Realtime] Product change detected. Refreshing...");
-        refresh();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 400);
   
@@ -152,7 +137,9 @@ export default function HomeScreen() {
         </View>
       ))}
     </View>
-  )  return (
+  );
+  
+  return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <Header />

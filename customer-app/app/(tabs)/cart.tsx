@@ -86,10 +86,18 @@ export default function CartScreen() {
       console.log("[Checkout] Validation passed. Method:", paymentMethod);
 
       if (paymentMethod === 'online') {
+        const orderId = await placeOrder(user.id, effectiveAddress, 'online', 'pending_payment'); 
+        
+        if (!orderId) {
+          setLoading(false);
+          return;
+        }
+
         router.push({
           pathname: '/payment',
           params: {
             amount: totalAmount,
+            orderId: orderId, // Pass the newly created order ID
             name: user.user_metadata?.full_name || 'Customer',
             email: user.email || '',
             contact: user.user_metadata?.phone || '',

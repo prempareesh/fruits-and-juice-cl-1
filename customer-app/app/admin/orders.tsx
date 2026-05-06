@@ -233,7 +233,7 @@ export default function OrderManagement() {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, profiles(full_name, phone)')
+        .select('*, profiles(full_name, phone), order_items(*, products(*))')
         .order('created_at', { ascending: false });
 
       if (error) throw error;

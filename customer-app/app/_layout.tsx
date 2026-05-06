@@ -31,6 +31,7 @@ try {
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const segments = useSegments();
   const router = useRouter();
@@ -47,16 +48,33 @@ export default function RootLayout() {
     // Check initial session safely
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setInitialized(true);
+      if (session?.user) {
+        supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
+          .then(
+            ({ data }) => {
+              setUserRole(data?.role || 'user');
+              setInitialized(true);
+            },
+            () => setInitialized(true)
+          );
+      } else {
+        setInitialized(true);
+      }
     }).catch(err => {
       console.error("Supabase Auth Error on boot:", err);
       setInitialized(true);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`[Auth] Event: ${event}, Session: ${session ? 'Active' : 'Null'}`);
       setSession(session);
+      if (session?.user) {
+        const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle();
+        setUserRole(data?.role || 'user');
+      } else {
+        setUserRole(null);
+      }
     });
 
     return () => {
@@ -71,54 +89,25 @@ export default function RootLayout() {
     const isRoot = !segments.length || segments[0] === 'index';
 
     if (!session || !session.user) {
-      console.log("[Auth] No session found, redirecting to signup");
       if (!inAuthGroup) {
+        console.log("[Auth] No session, redirecting to signup");
         router.replace('/signup');
       }
-    } else {
-      const checkAdmin = async () => {
-        try {
-          if (!session.user.id) return;
-          
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          // Double check: if profile is missing, check if it's the known admin email
-          const userRole = data?.role || (session.user.email === 'preethamgoud2006@gmail.com' ? 'admin' : 'user');
-
-          if (error) {
-            console.log("[Auth] Profile fetch error (likely missing):", error.message);
-            if (inAuthGroup || isRoot) {
-              router.replace('/(tabs)');
-            }
-            return;
-          }
-
-          if (data?.role === 'admin') {
-            console.log("[Auth] Admin detected. Current segment:", segments[0]);
-            if (segments[0] !== 'admin') {
-              console.log("[Auth] Redirecting to Admin area...");
-              router.replace('/admin');
-            }
-          } else {
-            console.log("[Auth] Customer detected. Current segment:", segments[0]);
-            if (inAuthGroup || isRoot || segments[0] === 'admin') {
-              router.replace('/(tabs)');
-            }
-          }
-        } catch (err: any) {
-          console.error("Layout Role Check Error:", err);
-          if (inAuthGroup || isRoot) {
-            router.replace('/(tabs)');
-          }
+    } else if (userRole) {
+      // Use cached role for instant redirection logic
+      if (userRole === 'admin') {
+        if (segments[0] !== 'admin') {
+          console.log("[Auth] Admin detected, redirecting to /admin");
+          router.replace('/admin');
         }
-      };
-      checkAdmin();
+      } else {
+        if (inAuthGroup || isRoot || segments[0] === 'admin') {
+          console.log("[Auth] Customer detected, redirecting to /(tabs)");
+          router.replace('/(tabs)');
+        }
+      }
     }
-  }, [session, initialized, segments, fontsLoaded]);
+  }, [session, initialized, segments, fontsLoaded, userRole]);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {

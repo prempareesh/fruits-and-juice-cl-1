@@ -49,6 +49,7 @@ export default function OrdersScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'received': return '#3b82f6';
+      case 'pending_payment': return '#94a3b8';
       case 'processing': return '#f59e0b';
       case 'completed': return '#10b981';
       case 'cancelled': return '#ef4444';

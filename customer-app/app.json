@@ -2,7 +2,7 @@
   "expo": {
     "name": "Juicy App",
     "slug": "juice-shop-customer",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.preetham.juiceshop",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "INTERNET",
         "ACCESS_FINE_LOCATION",

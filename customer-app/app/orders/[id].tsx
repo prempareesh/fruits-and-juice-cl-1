@@ -73,6 +73,7 @@ export default function OrderDetailsScreen() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'received': return <Clock size={24} color="#3b82f6" />;
+      case 'pending_payment': return <Clock size={24} color="#94a3b8" />;
       case 'processing': return <Package size={24} color="#f59e0b" />;
       case 'completed': return <CheckCircle2 size={24} color="#10b981" />;
       case 'cancelled': return <XCircle size={24} color="#ef4444" />;
@@ -83,6 +84,7 @@ export default function OrderDetailsScreen() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'received': return 'Order Received';
+      case 'pending_payment': return 'Awaiting Payment';
       case 'processing': return 'Processing';
       case 'completed': return 'Delivered';
       case 'cancelled': return 'Cancelled';
@@ -136,10 +138,10 @@ export default function OrderDetailsScreen() {
               <tbody>
                 ${items.map(item => `
                   <tr>
-                    <td>${item.products.name}</td>
+                    <td>${item.products?.name || 'Unknown Product'}</td>
                     <td>${item.quantity}</td>
-                    <td>₹${item.price_at_time.toFixed(2)}</td>
-                    <td>₹${item.subtotal.toFixed(2)}</td>
+                    <td>₹${(item.price_at_time || 0).toFixed(2)}</td>
+                    <td>₹${(item.subtotal || 0).toFixed(2)}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -238,7 +240,7 @@ export default function OrderDetailsScreen() {
                   <Text style={[styles.itemName, { color: theme.text }]}>{item.products?.name}</Text>
                   <Text style={[styles.itemSub, { color: theme.textSecondary }]}>Quantity: {item.quantity}</Text>
                 </View>
-                <Text style={[styles.itemPrice, { color: theme.text }]}>₹{item.subtotal.toFixed(2)}</Text>
+                <Text style={[styles.itemPrice, { color: theme.text }]}>₹{(item.subtotal || 0).toFixed(2)}</Text>
               </View>
               {index < items.length - 1 && <View style={[styles.divider, { backgroundColor: theme.divider }]} />}
             </View>
@@ -246,7 +248,7 @@ export default function OrderDetailsScreen() {
           <View style={[styles.divider, { backgroundColor: theme.divider, marginTop: 12 }]} />
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: theme.text }]}>Total Amount</Text>
-            <Text style={[styles.totalValue, { color: theme.primary }]}>₹{order.total_amount.toFixed(2)}</Text>
+            <Text style={[styles.totalValue, { color: theme.primary }]}>₹{(order.total_amount || 0).toFixed(2)}</Text>
           </View>
         </View>
 
