@@ -127,7 +127,22 @@ export default function OrderManagement() {
                   </div>
                   <div className="flex items-start space-x-2 text-sm text-gray-700">
                     <MapPin size={16} className="text-gray-400 mt-1" />
-                    <span className="flex-1">{order.address || 'Pickup from store'}</span>
+                    <div className="flex-1">
+                      <p className="font-medium">{order.formatted_address || order.address || 'Pickup'}</p>
+                      {order.landmark && (
+                        <p className="text-xs text-gray-500 mt-0.5">Landmark: {order.landmark}</p>
+                      )}
+                      {order.latitude && order.longitude && (
+                        <a 
+                          href={`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-red-500 font-bold hover:underline mt-2 inline-block flex items-center space-x-1"
+                        >
+                          <span>📍 View on Google Maps</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

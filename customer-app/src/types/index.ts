@@ -30,5 +30,11 @@ export interface Order {
   payment_status: string;
   delivery_type: 'delivery' | 'pickup';
   address: string;
+  formatted_address?: string;
+  landmark?: string;
+  city?: string;
+  postal_code?: string;
+  latitude?: number;
+  longitude?: number;
   created_at: string;
 }

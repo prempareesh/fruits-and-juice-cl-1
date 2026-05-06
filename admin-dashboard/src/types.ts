@@ -42,6 +42,12 @@ export interface Order {
   status: 'received' | 'processing' | 'completed' | 'cancelled';
   payment_type: 'online' | 'cod';
   address: string;
+  formatted_address?: string;
+  landmark?: string;
+  city?: string;
+  postal_code?: string;
+  latitude?: number;
+  longitude?: number;
   total_amount: number;
   profiles?: Profile;
   order_items?: OrderItem[];

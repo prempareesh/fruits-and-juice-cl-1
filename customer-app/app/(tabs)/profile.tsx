@@ -99,18 +99,16 @@ export default function ProfileScreen() {
       try {
         setLoading(true);
         const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-        
+        if (error) console.warn("Supabase signout issue:", error.message);
+      } catch (error: any) {
+        console.error('Logout error:', error.message);
+      } finally {
+        setLoading(false);
         // Clear any local storage that might be stuck
         if (typeof localStorage !== 'undefined') {
           localStorage.clear();
         }
-        
         router.replace('/login');
-      } catch (error: any) {
-        Alert.alert('Error', error.message);
-      } finally {
-        setLoading(false);
       }
     };
 

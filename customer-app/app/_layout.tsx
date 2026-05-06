@@ -44,34 +44,61 @@ export default function RootLayout() {
     Poppins_600SemiBold,
   });
 
+  const [fontTimeout, setFontTimeout] = useState(false);
+
   useEffect(() => {
-    // Check initial session safely
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
-          .then(
-            ({ data }) => {
-              setUserRole(data?.role || 'user');
-              setInitialized(true);
-            },
-            () => setInitialized(true)
-          );
-      } else {
+    const fTimer = setTimeout(() => {
+      console.log('[Boot] Font timeout reached, forcing render');
+      setFontTimeout(true);
+    }, 1500);
+    return () => clearTimeout(fTimer);
+  }, []);
+
+  useEffect(() => {
+    // Safety fallback: if auth takes too long, just initialize
+    const timeout = setTimeout(() => {
+      if (!initialized) {
+        console.log('[Boot] Auth timeout reached, forcing initialization');
         setInitialized(true);
       }
+    }, 1500);
+
+    // Check initial session safely (local fast read)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(timeout);
+      setSession(session);
+      
+      // OPTIMISTIC BOOT: Assume customer instantly to unblock UI
+      if (session?.user) setUserRole(prev => prev || 'user');
+      setInitialized(true);
+
+      if (session?.user) {
+        // Background sync admin role without blocking UI
+        supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
+          .then(({ data }) => {
+            if (data?.role && data.role !== 'user') {
+              setUserRole(data.role);
+            }
+          })
+          .catch(() => {});
+      }
     }).catch(err => {
+      clearTimeout(timeout);
       console.error("Supabase Auth Error on boot:", err);
       setInitialized(true);
     });
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Listen for auth changes (runs async)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log(`[Auth] Event: ${event}, Session: ${session ? 'Active' : 'Null'}`);
       setSession(session);
       if (session?.user) {
-        const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle();
-        setUserRole(data?.role || 'user');
+        setUserRole(prev => prev || 'user'); // Optimistic
+        supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
+          .then(({ data }) => {
+            if (data?.role && data.role !== 'user') setUserRole(data.role);
+          })
+          .catch(() => {});
       } else {
         setUserRole(null);
       }
@@ -83,7 +110,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!initialized || !fontsLoaded) return;
+    if (!initialized || (!fontsLoaded && !fontTimeout)) return;
 
     const inAuthGroup = segments[0] === 'login' || segments[0] === 'signup';
     const isRoot = !segments.length || segments[0] === 'index';
@@ -94,7 +121,6 @@ export default function RootLayout() {
         router.replace('/signup');
       }
     } else if (userRole) {
-      // Use cached role for instant redirection logic
       if (userRole === 'admin') {
         if (segments[0] !== 'admin') {
           console.log("[Auth] Admin detected, redirecting to /admin");
@@ -107,15 +133,15 @@ export default function RootLayout() {
         }
       }
     }
-  }, [session, initialized, segments, fontsLoaded, userRole]);
+  }, [session, initialized, segments, fontsLoaded, fontTimeout, userRole]);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+    if (fontsLoaded || fontError || fontTimeout) {
+      SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, fontTimeout]);
 
-  if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded && !fontError && !fontTimeout) {
     return null;
   }
 

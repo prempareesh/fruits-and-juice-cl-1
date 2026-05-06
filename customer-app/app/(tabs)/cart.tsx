@@ -25,6 +25,7 @@ import { Toast, ToastHandle } from '../../src/components/ui/Toast';
 import { ProductService } from '../../src/services/ProductService';
 import AddressPicker, { AddressData } from '../../src/components/AddressPicker';
 import { EmptyState } from '../../src/components/ui/EmptyState';
+import { NotificationService } from '../../src/services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -62,7 +63,7 @@ export default function CartScreen() {
       let effectiveAddress = selectedAddress?.formattedAddress;
       
       if (!effectiveAddress && selectedAddress) {
-        const parts = [selectedAddress.street, selectedAddress.locality, selectedAddress.city].filter(Boolean);
+        const parts = [selectedAddress.street, selectedAddress.area, selectedAddress.city].filter(Boolean);
         effectiveAddress = parts.join(', ');
       }
 
@@ -86,7 +87,7 @@ export default function CartScreen() {
       console.log("[Checkout] Validation passed. Method:", paymentMethod);
 
       if (paymentMethod === 'online') {
-        const orderId = await placeOrder(user.id, effectiveAddress, 'online', 'pending_payment'); 
+        const orderId = await placeOrder(user.id, effectiveAddress, 'online', 'pending_payment', selectedAddress || undefined); 
         
         if (!orderId) {
           setLoading(false);
@@ -97,7 +98,7 @@ export default function CartScreen() {
           pathname: '/payment',
           params: {
             amount: totalAmount,
-            orderId: orderId, // Pass the newly created order ID
+            orderId: orderId,
             name: user.user_metadata?.full_name || 'Customer',
             email: user.email || '',
             contact: user.user_metadata?.phone || '',
@@ -121,9 +122,26 @@ export default function CartScreen() {
       
       console.log("[Checkout] Processing order for user:", userId, "Address:", finalAddress);
       
-      const orderId = await placeOrder(userId, finalAddress, paymentMethod);
+      const orderId = await placeOrder(userId, finalAddress, paymentMethod, 'received', selectedAddress || undefined);
       
       if (orderId) {
+        const orderPayload = {
+          id: orderId,
+          customerName: user?.user_metadata?.full_name || 'Valued Customer',
+          customerPhone: user?.user_metadata?.phone || 'N/A',
+          address: finalAddress,
+          landmark: selectedAddress?.landmark,
+          latitude: selectedAddress?.latitude || 0,
+          longitude: selectedAddress?.longitude || 0,
+          items: items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
+          total: getTotal(),
+          paymentType: paymentMethod,
+          createdAt: new Date().toISOString()
+        };
+
+        // Trigger Admin Notification
+        NotificationService.sendOrderNotification(orderPayload);
+
         setLastOrder({
           id: orderId,
           items: [...items],

@@ -63,14 +63,17 @@ export const useProducts = () => {
   useEffect(() => {
     fetchProducts();
 
-    const channel = supabase.channel('products-realtime')
+    const channelId = `products-${Math.random().toString(36).slice(2, 9)}`;
+    const channel = supabase.channel(channelId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
         fetchProducts(true);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchProducts]);
 
   return {
     products,

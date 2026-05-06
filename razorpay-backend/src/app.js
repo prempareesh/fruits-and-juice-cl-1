@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 require('dotenv').config();
 
 const paymentRoutes = require('./routes/paymentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -14,6 +15,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/payment', paymentRoutes);
+app.use('/api/notification', notificationRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {

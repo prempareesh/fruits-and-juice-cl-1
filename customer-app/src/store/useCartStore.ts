@@ -6,7 +6,7 @@ import { monitor } from '../services/MonitoringService';
 import { Product, JuiceVariant } from '../types';
 import { ProductService } from '../services/ProductService';
 import { supabase } from '../../lib/supabase';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 export interface CartItem {
   id: string;
@@ -28,8 +28,10 @@ interface CartStore {
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   getTotal: () => number;
-  placeOrder: (userId: string, address: string, paymentType: 'online' | 'cod', initialStatus?: string) => Promise<string | null>;
+  placeOrder: (userId: string, address: string, paymentType: 'online' | 'cod', initialStatus?: string, locationData?: Partial<StructuredAddress>) => Promise<string | null>;
 }
+
+import { StructuredAddress } from '../services/LocationService';
 
 export const useCartStore = create<CartStore>()(
   persist(
@@ -66,12 +68,16 @@ export const useCartStore = create<CartStore>()(
             subtotal: price * quantity,
             image: product.image_url,
           };
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          if (Platform.OS !== 'web') {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          }
           return { items: [...state.items, newItem] };
         });
       },
       removeItem: (id) => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (Platform.OS !== 'web') {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
         set((state) => ({
           items: state.items.filter((item) => item.id !== id)
         }))
@@ -85,7 +91,7 @@ export const useCartStore = create<CartStore>()(
       })),
       clearCart: () => set({ items: [] }),
       getTotal: () => get().items.reduce((acc, item) => acc + item.subtotal, 0),
-      placeOrder: async (userId, address, paymentType, initialStatus = 'received') => {
+      placeOrder: async (userId, address, paymentType, initialStatus = 'received', locationData) => {
         return await monitor.trackPerformance('PlaceOrder', async () => {
           const { items, getTotal } = get();
           try {
@@ -105,21 +111,32 @@ export const useCartStore = create<CartStore>()(
               p_total_amount: getTotal(),
               p_payment_type: paymentType,
               p_items: rpcItems,
-              p_initial_status: initialStatus
+              p_initial_status: initialStatus,
+              p_latitude: locationData?.latitude,
+              p_longitude: locationData?.longitude,
+              p_formatted_address: locationData?.formattedAddress,
+              p_city: locationData?.city,
+              p_postal_code: locationData?.postalCode,
+              p_landmark: locationData?.landmark
             });
 
             if (error) throw error;
             if (!data.success) throw new Error(data.message);
 
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            if (Platform.OS !== 'web') {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
             return data.order_id;
           } catch (error: any) {
-            monitor.log('ERROR', 'Checkout', 'Order placement failed', { error });
-            Alert.alert('Order Failed', error.message || 'Inventory check or connection failed.');
+            const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+            monitor.log('ERROR', 'Checkout', 'Order placement failed', { 
+              message: errorMessage,
+              stack: error.stack 
+            });
+            Alert.alert('Order Failed', errorMessage || 'Inventory check or connection failed.');
             return null;
           }
         });
-      },
       },
     }),
     {

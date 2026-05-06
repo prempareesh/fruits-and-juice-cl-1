@@ -183,7 +183,12 @@ export default function ProductDetail() {
                       ]}>
                         {v.variant_type === 'very_pure' ? 'Super Pure' : 'Classic'}
                       </Text>
-                      {v.variant_type === 'very_pure' && <ShieldCheck size={16} color={selectedVariant?.id === v.id ? '#FFFFFF' : '#FF7700'} />}
+                      {v.stock_units <= 0 && (
+                        <View style={styles.outOfStockBadgeSmall}>
+                          <Text style={styles.outOfStockTextSmall}>Out of Stock</Text>
+                        </View>
+                      )}
+                      {v.variant_type === 'very_pure' && v.stock_units > 0 && <ShieldCheck size={16} color={selectedVariant?.id === v.id ? '#FFFFFF' : '#FF7700'} />}
                     </View>
                     <Text style={[
                       styles.variantPrice,
@@ -217,7 +222,7 @@ export default function ProductDetail() {
                 </View>
                 <TouchableOpacity 
                   style={styles.stepperButton} 
-                  onPress={() => setWeight(Math.min(10, weight + 1))}
+                  onPress={() => setWeight(Math.min(product.stock_kg || 0, weight + 1))}
                 >
                   <Plus size={22} color="#1e293b" />
                 </TouchableOpacity>
@@ -235,16 +240,32 @@ export default function ProductDetail() {
           <Text style={styles.totalLabel}>Grand Total</Text>
           <Text style={styles.totalPrice}>{ProductService.formatPrice(currentPrice)}</Text>
         </View>
-        <TouchableOpacity activeOpacity={0.9} style={styles.cartButtonContainer} onPress={handleAddToCart}>
-          <Animated.View style={[styles.cartButton, animatedCartStyle]}>
+        <TouchableOpacity 
+          activeOpacity={0.9} 
+          style={styles.cartButtonContainer} 
+          onPress={handleAddToCart}
+          disabled={isJuice ? (selectedVariant?.stock_units || 0) <= 0 : (product.stock_kg || 0) <= 0}
+        >
+          <Animated.View style={[
+            styles.cartButton, 
+            animatedCartStyle,
+            (isJuice ? (selectedVariant?.stock_units || 0) <= 0 : (product.stock_kg || 0) <= 0) && styles.disabledButton
+          ]}>
             <LinearGradient
-              colors={['#FF9900', '#FF6600']}
+              colors={ (isJuice ? (selectedVariant?.stock_units || 0) <= 0 : (product.stock_kg || 0) <= 0) 
+                ? ['#94a3b8', '#64748b'] 
+                : ['#FF9900', '#FF6600']
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.gradient}
             >
               <ShoppingBag size={20} color="#FFFFFF" style={styles.cartIcon} />
-              <Text style={styles.cartButtonText}>Add to Cart</Text>
+              <Text style={styles.cartButtonText}>
+                {(isJuice ? (selectedVariant?.stock_units || 0) <= 0 : (product.stock_kg || 0) <= 0) 
+                  ? 'Out of Stock' 
+                  : 'Add to Cart'}
+              </Text>
             </LinearGradient>
           </Animated.View>
         </TouchableOpacity>
@@ -531,4 +552,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Outfit_700Bold',
     fontSize: 17,
   },
+  disabledButton: {
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  outOfStockBadgeSmall: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  outOfStockTextSmall: {
+    color: '#ef4444',
+    fontSize: 10,
+    fontFamily: 'Outfit_700Bold',
+  }
 });

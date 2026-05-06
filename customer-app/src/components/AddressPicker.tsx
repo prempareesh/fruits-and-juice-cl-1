@@ -13,8 +13,8 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
 import AddressMap from './AddressMap';
+import { LocationService, StructuredAddress } from '../services/LocationService';
 import { 
   MapPin, 
   Navigation, 
@@ -24,21 +24,12 @@ import {
   ChevronRight, 
   X,
   RefreshCcw,
-  Search
+  Search,
+  Map as MapIcon
 } from 'lucide-react-native';
 import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../theme/tokens';
 
-export interface AddressData {
-  street: string;
-  locality: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-  formattedAddress: string;
-  latitude: number;
-  longitude: number;
-}
+export type AddressData = StructuredAddress;
 
 interface AddressPickerProps {
   onAddressSelect: (address: AddressData) => void;
@@ -53,13 +44,15 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
   const [success, setSuccess] = useState(false);
 
   const [address, setAddress] = useState<AddressData>({
+    formattedAddress: initialAddress?.formattedAddress || '',
     street: initialAddress?.street || '',
-    locality: initialAddress?.locality || '',
+    houseNumber: initialAddress?.houseNumber || '',
+    area: initialAddress?.area || '',
     city: initialAddress?.city || '',
     state: initialAddress?.state || '',
     postalCode: initialAddress?.postalCode || '',
     country: initialAddress?.country || '',
-    formattedAddress: initialAddress?.formattedAddress || '',
+    landmark: initialAddress?.landmark || '',
     latitude: initialAddress?.latitude || 0,
     longitude: initialAddress?.longitude || 0,
   });
@@ -68,108 +61,76 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
     setAddress(prev => {
       const next = { ...prev, [field]: value };
       if (field !== 'formattedAddress') {
-        const parts = [next.street, next.locality, next.city, next.state, next.postalCode, next.country].filter(Boolean);
+        const parts = [
+          next.houseNumber, 
+          next.street, 
+          next.area, 
+          next.city, 
+          next.state, 
+          next.postalCode
+        ].filter(Boolean);
         next.formattedAddress = parts.join(', ');
       }
       return next;
     });
   };
 
-  // Sync with parent whenever the address object changes (Manual or Auto)
+  // Sync with parent whenever the address object changes
   useEffect(() => {
-    if (address.formattedAddress && address.formattedAddress !== initialAddress?.formattedAddress) {
+    if (address.formattedAddress) {
       onAddressSelect(address);
     }
-  }, [address.formattedAddress, onAddressSelect]);
-
-  const fetchAddressFromCoords = async (latitude: number, longitude: number) => {
-    try {
-      setLoading(true);
-      console.log(`[AddressPicker] Reverse geocoding: ${latitude}, ${longitude}`);
-      
-      const response = await Location.reverseGeocodeAsync({ latitude, longitude });
-      
-      if (response && response.length > 0) {
-        const result = response[0];
-        console.log("[AddressPicker] Geocoding result:", result);
-        
-        const newAddress: AddressData = {
-          street: result.street || result.name || '',
-          locality: result.district || result.subregion || '',
-          city: result.city || '',
-          state: result.region || '',
-          postalCode: result.postalCode || '',
-          country: result.country || '',
-          formattedAddress: '',
-          latitude,
-          longitude,
-        };
-
-        // Construct human-readable string
-        const parts = [
-          newAddress.street,
-          newAddress.locality,
-          newAddress.city,
-          newAddress.state,
-          newAddress.postalCode
-        ].filter(p => p && p.trim() !== '');
-        
-        newAddress.formattedAddress = parts.join(', ');
-        
-        setAddress(newAddress);
-        setSuccess(true);
-        onAddressSelect(newAddress);
-        setTimeout(() => setSuccess(false), 3000);
-      } else {
-        console.warn("[AddressPicker] No address found for these coordinates. Switching to manual.");
-        setIsManual(true);
-        Alert.alert("Location Not Found", "We couldn't resolve your GPS to an address. Please enter it manually.");
-      }
-    } catch (error: any) {
-      console.error("[AddressPicker] Geocoding API Error:", error.message);
-      setError('Address service unavailable. Please enter manually.');
-      setIsManual(true);
-      Alert.alert("Service Unavailable", "The automatic address lookup service failed. Please enter your address manually.");
-    }
-  };
+  }, [address, onAddressSelect]);
 
   const handleAllowLocation = async () => {
     setLoading(true);
     setError(null);
+    setSuccess(false);
+    
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Phase 2: Professional Permission Handling
+      const hasPermission = await LocationService.requestPermissions();
+      if (!hasPermission) {
+        setError('Location permission is required for auto-detection.');
+        // Don't use Alert.alert on web/production if possible, but for permissions it's okay as a last resort
+        if (Platform.OS !== 'web') {
+          Alert.alert(
+            'Location Access Needed',
+            'Please enable location services in your device settings to use this feature.',
+            [{ text: 'Open Settings', onPress: () => Linking.openSettings() }, { text: 'OK' }]
+          );
+        }
+        return;
+      }
+
+      // Phase 3 & 5: Optimized Fetching with human-readable feedback
+      const coords = await LocationService.getCurrentCoords();
+      if (!coords) {
+        setError('GPS signal weak. Please ensure location is enabled.');
+        return;
+      }
+
+      setLocation(coords);
       
-      if (status !== 'granted') {
-        setError('Location permission denied');
-        Alert.alert(
-          'Permission Denied',
-          'We need location access to autofill your address. Would you like to open settings?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() }
-          ]
-        );
-        setLoading(false);
-        return;
+      // Phase 3: Reverse Geocoding with fallback
+      const structuredAddress = await LocationService.reverseGeocode(coords.latitude, coords.longitude);
+      
+      if (structuredAddress) {
+        setAddress(prev => ({
+          ...prev,
+          ...structuredAddress,
+          landmark: prev.landmark // Preserve landmark if already typed
+        }));
+        setSuccess(true);
+        setIsManual(false); // Switch out of manual if we found it
+        setTimeout(() => setSuccess(false), 3000);
+      } else {
+        setError('Could not identify address. Please enter manually.');
+        setIsManual(true);
       }
-
-      const hasServices = await Location.hasServicesEnabledAsync();
-      if (!hasServices) {
-        setError('Location services disabled');
-        Alert.alert('GPS Disabled', 'Please enable location services in your device settings.');
-        setLoading(false);
-        return;
-      }
-
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const { latitude, longitude } = loc.coords;
-      setLocation({ latitude, longitude });
-      await fetchAddressFromCoords(latitude, longitude);
     } catch (err) {
-      setError('Failed to fetch location. Try again or enter manually.');
+      setError('An unexpected error occurred. Please enter address manually.');
+      setIsManual(true);
     } finally {
       setLoading(false);
     }
@@ -251,15 +212,29 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
                   <View style={styles.row}>
                     <TextInput
                       style={[styles.input, { flex: 1 }]}
-                      placeholder="Street/House No"
+                      placeholder="House/Flat No"
+                      value={address.houseNumber}
+                      onChangeText={(v) => handleManualChange('houseNumber', v)}
+                    />
+                    <TextInput
+                      style={[styles.input, { flex: 2, marginLeft: 8 }]}
+                      placeholder="Street/Road Name"
                       value={address.street}
                       onChangeText={(v) => handleManualChange('street', v)}
                     />
+                  </View>
+                  <View style={styles.row}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Area/Locality"
+                      value={address.area}
+                      onChangeText={(v) => handleManualChange('area', v)}
+                    />
                     <TextInput
                       style={[styles.input, { flex: 1, marginLeft: 8 }]}
-                      placeholder="Area/Locality"
-                      value={address.locality}
-                      onChangeText={(v) => handleManualChange('locality', v)}
+                      placeholder="Landmark (Optional)"
+                      value={address.landmark}
+                      onChangeText={(v) => handleManualChange('landmark', v)}
                     />
                   </View>
                   <View style={styles.row}>
@@ -271,9 +246,10 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
                     />
                     <TextInput
                       style={[styles.input, { flex: 1, marginLeft: 8 }]}
-                      placeholder="Postal Code"
+                      placeholder="Pincode"
                       value={address.postalCode}
                       onChangeText={(v) => handleManualChange('postalCode', v)}
+                      keyboardType="numeric"
                     />
                   </View>
                 </View>
@@ -323,6 +299,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     gap: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   allowBtnText: {
     color: COLORS.white,
@@ -419,6 +398,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     borderWidth: 1,
     borderColor: COLORS.border,
+    color: COLORS.darkText,
   },
   errorBox: {
     backgroundColor: '#FFEBEE',

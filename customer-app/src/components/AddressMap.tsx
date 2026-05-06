@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { RefreshCcw } from 'lucide-react-native';
 import { COLORS } from '../theme/tokens';
@@ -15,7 +15,7 @@ export default function AddressMap({ location, addressName, onRefresh }: Address
     <View style={styles.mapContainer}>
       <MapView
         style={styles.map}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         region={{
           latitude: location.latitude,
           longitude: location.longitude,

@@ -19,6 +19,7 @@ import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../src/theme/tokens';
 import { ShieldCheck, AlertCircle, RefreshCw, ChevronLeft } from 'lucide-react-native';
 import { Toast, ToastHandle } from '../src/components/ui/Toast';
 import Animated, { FadeIn, FadeInUp, ZoomIn } from 'react-native-reanimated';
+import { NotificationService, OrderNotificationPayload } from '../src/services/NotificationService';
 
 const BASE_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://juice-app-9uzq.onrender.com';
 const BACKEND_URL = BASE_API_URL.endsWith('/api/payment') ? BASE_API_URL : `${BASE_API_URL}/api/payment`;
@@ -36,13 +37,53 @@ export default function PaymentScreen() {
   const [verifying, setVerifying] = useState(false);
   const [saveError, setSaveError] = useState<{msg: string, data: any} | null>(null);
 
-  // 1. Create Razorpay Order
+  const [preloading, setPreloading] = useState(true);
+
+  // Background Preload of Razorpay Order ID
+  useEffect(() => {
+    let isMounted = true;
+    const preloadOrder = async () => {
+      try {
+        const parsedAmount = Number(amount);
+        const response = await axios.post(`${BACKEND_URL}/create-order`, {
+          amount: parsedAmount,
+          currency: 'INR',
+          receipt: `rcpt_${Date.now()}`,
+        }, { timeout: 30000 });
+
+        if (isMounted && response.data?.success && response.data?.order_id) {
+          setOrderId(response.data.order_id);
+        }
+      } catch (error) {
+        console.warn("[Preload] Order preload failed, will retry on click");
+      } finally {
+        if (isMounted) setPreloading(false);
+      }
+    };
+    preloadOrder();
+    return () => { isMounted = false; };
+  }, [amount]);
+
+  // 1. Instant Razorpay Open (or fallback creation)
   const handlePayNow = async () => {
     if (loading) return;
+
+    if (Platform.OS !== 'web') {
+      try {
+        const Haptics = require('expo-haptics');
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } catch (e) {}
+    }
+
+    if (orderId) {
+      setShowWebView(true);
+      return;
+    }
+
+    // Fallback if preload failed
     try {
       setLoading(true);
       const parsedAmount = Number(amount);
-      
       const response = await axios.post(`${BACKEND_URL}/create-order`, {
         amount: parsedAmount,
         currency: 'INR',
@@ -79,7 +120,7 @@ export default function PaymentScreen() {
         throw new Error('Signature verification failed');
       }
 
-      // Step B: Update Existing Order Status with Payment Details
+      // Step B: Fast Update Existing Order Status (No heavy joins)
       const { error: updateError } = await supabase
         .from('orders')
         .update({ 
@@ -92,6 +133,27 @@ export default function PaymentScreen() {
         .eq('id', orderIdFromParams);
       
       if (updateError) throw updateError;
+
+      // Step C: Trigger Admin Notification instantly using local memory
+      const { items, getTotal } = useCartStore.getState();
+      const orderPayload: OrderNotificationPayload = {
+        id: orderIdFromParams as string,
+        customerName: (name as string) || 'Customer',
+        customerPhone: (contact as string) || 'N/A',
+        address: 'Online Order', // Basic fallback, admin dashboard will show full details
+        landmark: '',
+        latitude: 0,
+        longitude: 0,
+        items: items.map((i: any) => ({
+          name: i.name || 'Juice Item',
+          quantity: i.quantity,
+          price: i.price
+        })),
+        total: getTotal(),
+        paymentType: 'online',
+        createdAt: new Date().toISOString()
+      };
+      NotificationService.sendOrderNotification(orderPayload);
 
       const finalOrderId = orderIdFromParams as string;
 
@@ -138,7 +200,10 @@ export default function PaymentScreen() {
       const handleWebMessage = (e: MessageEvent) => {
         try {
           const message = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-          if (message.status) onMessage({ nativeEvent: { data: JSON.stringify(message) } } as any);
+          // Strictly filter only OUR specific app bridge statuses
+          if (message && (message.status === 'success' || message.status === 'cancelled' || message.status === 'failure')) {
+            onMessage({ nativeEvent: { data: JSON.stringify(message) } } as any);
+          }
         } catch (err) {}
       };
       window.addEventListener('message', handleWebMessage);
@@ -178,9 +243,69 @@ export default function PaymentScreen() {
     );
   }
 
+  const webViewRef = useRef<WebView>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const razorpayKeyId = process.env.EXPO_PUBLIC_RAZORPAY_KEY || '';
+  
+  const checkoutHtml = orderId ? `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <style>
+          body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: transparent; overflow: hidden; font-family: sans-serif; }
+        </style>
+      </head>
+      <body>
+        <script>
+          const options = {
+            "key": "${razorpayKeyId}",
+            "amount": "${Number(amount) * 100}",
+            "currency": "INR",
+            "name": "${name || 'JuicyApp'}",
+            "description": "Payment for order ${orderId}",
+            "image": "https://img.icons8.com/color/96/000000/juice.png",
+            "order_id": "${orderId}",
+            "retry": { "enabled": true, "max_count": 3 },
+            "handler": function (response) { sendToApp('success', response); },
+            "prefill": { "name": "${name || ''}", "email": "${email || ''}", "contact": "${contact || ''}" },
+            "theme": { "color": "#3A8C3F" },
+            "modal": { ondismiss: function() { sendToApp('cancelled'); } }
+          };
+          
+          function sendToApp(status, data) {
+            const message = JSON.stringify({ status, data });
+            if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(message);
+            if (window.parent && window.parent !== window) window.parent.postMessage(message, "*");
+          }
+
+          let rzp;
+          try {
+            rzp = new Razorpay(options);
+            rzp.on('payment.failed', function (response){ sendToApp('failure', response.error); });
+          } catch(e) {
+            sendToApp('failure', { description: 'Failed to load Razorpay SDK' });
+          }
+
+          // Wait for signal from React Native to open
+          function handleSignal(event) {
+            try {
+              const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+              if (data.type === 'OPEN_RAZORPAY' && rzp) {
+                rzp.open();
+              }
+            } catch(e) {}
+          }
+          window.addEventListener('message', handleSignal);
+          document.addEventListener('message', handleSignal);
+        </script>
+      </body>
+    </html>
+  ` : '';
+
   if (showWebView && orderId) {
-    const checkoutUrl = `${BACKEND_URL}/checkout/${orderId}?amount=${Number(amount) * 100}&name=${encodeURIComponent(name as string)}&email=${encodeURIComponent(email as string)}&contact=${encodeURIComponent(contact as string)}`;
-    
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.webViewHeader}>
@@ -191,13 +316,14 @@ export default function PaymentScreen() {
           <View style={{ width: 24 }} />
         </View>
         {Platform.OS === 'web' ? (
-          <iframe src={checkoutUrl} style={styles.iframe} title="Payment" />
+          <iframe ref={iframeRef} srcDoc={checkoutHtml} style={styles.iframe} title="Payment" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals" />
         ) : (
           <WebView 
-            source={{ uri: checkoutUrl }} 
+            ref={webViewRef}
+            source={{ html: checkoutHtml }} 
             onMessage={onMessage}
-            startInLoadingState 
-            renderLoading={() => <ActivityIndicator size="large" color={COLORS.primaryGreen} style={StyleSheet.absoluteFill} />}
+            originWhitelist={['*']}
+            style={{ flex: 1, backgroundColor: 'transparent' }}
           />
         )}
       </SafeAreaView>
