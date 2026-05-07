@@ -253,7 +253,6 @@ export default function PaymentScreen() {
     <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
         <style>
           body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: transparent; overflow: hidden; font-family: sans-serif; }
         </style>
@@ -281,27 +280,17 @@ export default function PaymentScreen() {
             if (window.parent && window.parent !== window) window.parent.postMessage(message, "*");
           }
 
-          let rzp;
-          try {
-            rzp = new Razorpay(options);
-            rzp.on('payment.failed', function (response){ sendToApp('failure', response.error); });
-            rzp.open();
-          } catch(e) {
-            sendToApp('failure', { description: 'Failed to load Razorpay SDK' });
-          }
-
-          // Wait for signal from React Native to open
-          function handleSignal(event) {
+          function initRazorpay() {
             try {
-              const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-              if (data.type === 'OPEN_RAZORPAY' && rzp) {
-                rzp.open();
-              }
-            } catch(e) {}
+              let rzp = new Razorpay(options);
+              rzp.on('payment.failed', function (response){ sendToApp('failure', response.error); });
+              rzp.open();
+            } catch(e) {
+              sendToApp('failure', { description: 'Failed to load Razorpay SDK' });
+            }
           }
-          window.addEventListener('message', handleSignal);
-          document.addEventListener('message', handleSignal);
         </script>
+        <script src="https://checkout.razorpay.com/v1/checkout.js" onload="initRazorpay()"></script>
       </body>
     </html>
   ` : '';
@@ -321,9 +310,12 @@ export default function PaymentScreen() {
         ) : (
           <WebView 
             ref={webViewRef}
-            source={{ html: checkoutHtml }} 
+            source={{ html: checkoutHtml, baseUrl: 'https://checkout.razorpay.com' }} 
             onMessage={onMessage}
             originWhitelist={['*']}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            mixedContentMode="always"
             style={{ flex: 1, backgroundColor: 'transparent' }}
           />
         )}
