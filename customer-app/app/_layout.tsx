@@ -75,12 +75,12 @@ export default function RootLayout() {
       if (session?.user) {
         // Background sync admin role without blocking UI
         supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
-          .then(({ data }) => {
+          .then(({ data, error }) => {
+            if (error) console.warn('Role fetch error:', error);
             if (data?.role && data.role !== 'user') {
               setUserRole(data.role);
             }
-          })
-          .catch(() => {});
+          });
       }
     }).catch(err => {
       clearTimeout(timeout);
@@ -95,10 +95,10 @@ export default function RootLayout() {
       if (session?.user) {
         setUserRole(prev => prev || 'user'); // Optimistic
         supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
-          .then(({ data }) => {
+          .then(({ data, error }) => {
+            if (error) console.warn('Role fetch error:', error);
             if (data?.role && data.role !== 'user') setUserRole(data.role);
-          })
-          .catch(() => {});
+          });
       } else {
         setUserRole(null);
       }

@@ -62,7 +62,7 @@ export const LocationService = {
           accuracy: Location.Accuracy.Balanced,
         }),
         new Promise<null>((_, reject) => 
-          setTimeout(() => reject(new Error('Location timeout')), 4000)
+          setTimeout(() => reject(new Error('Location timeout')), 10000)
         )
       ]) as Location.LocationObject;
 

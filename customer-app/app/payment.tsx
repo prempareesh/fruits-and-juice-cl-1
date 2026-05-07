@@ -285,6 +285,7 @@ export default function PaymentScreen() {
           try {
             rzp = new Razorpay(options);
             rzp.on('payment.failed', function (response){ sendToApp('failure', response.error); });
+            rzp.open();
           } catch(e) {
             sendToApp('failure', { description: 'Failed to load Razorpay SDK' });
           }

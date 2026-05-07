@@ -90,13 +90,39 @@ ${new Date(createdAt).toLocaleString()}
 
     // Send WhatsApp (if configured)
     let whatsappResponse = null;
+    let customerWhatsappResponse = null;
     if (process.env.ENABLE_WHATSAPP === 'true') {
         whatsappResponse = await client.messages.create({
             body: message,
             from: `whatsapp:${twilioPhone}`,
             to: `whatsapp:${whatsappAdminPhone}`
         });
-        console.log(`[Notification] WhatsApp sent: ${whatsappResponse.sid}`);
+        console.log(`[Notification] Admin WhatsApp sent: ${whatsappResponse.sid}`);
+
+        // Send to Customer
+        if (customerPhone && customerPhone !== 'N/A') {
+            try {
+                let formattedCustomerPhone = customerPhone.replace(/\D/g, '');
+                if (formattedCustomerPhone.length === 10) {
+                    formattedCustomerPhone = `+91${formattedCustomerPhone}`;
+                } else if (!customerPhone.startsWith('+')) {
+                    formattedCustomerPhone = `+${formattedCustomerPhone}`;
+                } else {
+                    formattedCustomerPhone = customerPhone;
+                }
+
+                const customerMessage = `Hi ${customerName},\n\nYour order #${id.slice(0, 6).toUpperCase()} has been received and is being processed!\n\nTotal: ₹${total}\nPayment: ${paymentType === 'cod' ? 'Cash on Delivery' : 'Online Payment'}\n\nThank you for choosing Juicy App! 🧃`;
+
+                customerWhatsappResponse = await client.messages.create({
+                    body: customerMessage,
+                    from: `whatsapp:${twilioPhone}`,
+                    to: `whatsapp:${formattedCustomerPhone}`
+                });
+                console.log(`[Notification] Customer WhatsApp sent: ${customerWhatsappResponse.sid}`);
+            } catch (err) {
+                console.error('[Notification] Failed to send Customer WhatsApp:', err.message);
+            }
+        }
     }
 
     res.status(200).json({ 
