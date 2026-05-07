@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { LocationService, StructuredAddress } from '../services/LocationService';
 import { monitor } from '../services/MonitoringService';
-import { Platform } from 'react-native';
-import * as IntentLauncher from 'expo-intent-launcher';
+import { Platform, Linking } from 'react-native';
 
 interface UseLocationResult {
   loading: boolean;
@@ -20,9 +19,7 @@ export function useLocation(): UseLocationResult {
   const fetchInProgress = useRef(false);
 
   const openSettings = useCallback(() => {
-    if (Platform.OS === 'android') {
-      IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.LOCATION_SOURCE_SETTINGS);
-    }
+    Linking.openSettings();
   }, []);
 
   const fetchLocation = useCallback(async () => {
