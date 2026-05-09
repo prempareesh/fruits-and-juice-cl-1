@@ -42,13 +42,16 @@ exports.createOrder = async (req, res) => {
   } catch (error) {
     console.error('[RAZORPAY] Create Order Failed:', {
       message: error.message,
-      metadata: error.metadata,
+      statusCode: error.statusCode,
+      metadata: error.error || error.metadata,
       amount: req.body.amount
     });
     res.status(500).json({
       success: false,
       message: 'Payment Initialization Failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      // Always expose error for debugging — remove once resolved
+      error: error.message,
+      code: error.statusCode || error.error?.code
     });
   }
 };
