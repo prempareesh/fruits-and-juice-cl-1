@@ -7,49 +7,48 @@ const crypto = require('crypto');
  */
 exports.createOrder = async (req, res) => {
   try {
-    const { amount, currency = 'INR' } = req.body;
+    const { amount, currency = 'INR', receipt } = req.body;
 
-    // Validation
+    // Strict Validation
     if (!amount || typeof amount !== 'number' || amount <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Valid amount is required (must be a positive number)',
+        message: 'Valid amount is required (positive number)',
       });
     }
 
     const options = {
       amount: Math.round(amount * 100), // convert to paise
       currency,
-      receipt: `receipt_${Date.now()}`,
+      receipt: receipt || `rcpt_${Date.now()}`,
+      payment_capture: 1 // Auto capture
     };
 
     const order = await razorpay.orders.create(options);
 
     if (!order) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to create order with Razorpay',
-      });
+      throw new Error('Razorpay order creation returned null');
     }
 
-    // Return only necessary data, never expose secrets
+    // SECURITY: Return the order details and the Key ID to ensure frontend sync
+    // NEVER return the Secret Key
     res.status(201).json({
       success: true,
       order_id: order.id,
       amount: order.amount,
       currency: order.currency,
+      key_id: process.env.RAZORPAY_KEY_ID // Ensure frontend uses the same key as backend
     });
   } catch (error) {
-    console.error('RAZORPAY_ORDER_ERROR_DETAILS:', {
+    console.error('[RAZORPAY] Create Order Failed:', {
       message: error.message,
-      code: error.code,
-      description: error.description,
+      metadata: error.metadata,
       amount: req.body.amount
     });
     res.status(500).json({
       success: false,
-      message: 'Payment Gateway Error',
-      error: error.message, // Temporarily show error message for production debugging
+      message: 'Payment Initialization Failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -65,33 +64,34 @@ exports.verifyPayment = async (req, res) => {
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({
         success: false,
-        message: 'Order ID, Payment ID, and Signature are required',
+        message: 'Missing required payment verification parameters',
       });
     }
 
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    const generated_signature = crypto
+      .createHmac('sha256', secret)
+      .update(razorpay_order_id + "|" + razorpay_payment_id)
       .digest('hex');
 
-    if (expectedSignature === razorpay_signature) {
+    if (generated_signature === razorpay_signature) {
+      console.log(`[RAZORPAY] Payment Verified: ${razorpay_payment_id} for Order: ${razorpay_order_id}`);
       res.status(200).json({
         success: true,
         message: 'Payment verified successfully',
       });
     } else {
+      console.warn(`[RAZORPAY] Invalid Signature: ${razorpay_order_id}`);
       res.status(400).json({
         success: false,
-        message: 'Invalid signature. Payment verification failed.',
+        message: 'Invalid payment signature. Potential tampering detected.',
       });
     }
   } catch (error) {
-    console.error('RAZORPAY_VERIFY_ERROR:', error);
+    console.error('[RAZORPAY] Verification Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal Server Error',
+      message: 'Payment verification failed',
     });
   }
 };
@@ -102,88 +102,85 @@ exports.verifyPayment = async (req, res) => {
  */
 exports.renderCheckout = (req, res) => {
   const { orderId } = req.params;
-  const { amount, name, email, contact } = req.query;
+  const { amount, name, email, contact, key } = req.query;
 
-  if (!process.env.RAZORPAY_KEY_ID) {
-    return res.status(500).send('Razorpay Key ID is not configured');
+  const razorpayKeyId = key || process.env.RAZORPAY_KEY_ID;
+
+  if (!razorpayKeyId) {
+    return res.status(500).send('Razorpay configuration missing');
   }
 
   const html = `
     <!DOCTYPE html>
     <html>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>Secure Checkout</title>
         <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
         <style>
-          body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f8fafc; font-family: sans-serif; }
-          .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3A8C3F; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+          body { margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+          .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3A8C3F; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-          p { color: #64748b; margin-top: 16px; }
+          .text { color: #1e293b; margin-top: 20px; font-size: 14px; font-weight: 500; }
         </style>
       </head>
       <body>
-        <div style="text-align: center;">
-          <div class="loader"></div>
-          <p>Initializing Secure Payment...</p>
-        </div>
+        <div class="loader"></div>
+        <div class="text">Securely connecting to Razorpay...</div>
+        
         <script>
           const options = {
-            "key": "${process.env.RAZORPAY_KEY_ID}",
+            "key": "${razorpayKeyId}",
             "amount": "${amount}",
             "currency": "INR",
             "name": "${name || 'JuicyApp'}",
-            "description": "Payment for order ${orderId}",
-            "image": "https://img.icons8.com/color/96/000000/juice.png",
+            "description": "Premium Juice Order",
             "order_id": "${orderId}",
-            "retry": {
-              "enabled": true,
-              "max_count": 3
-            },
-            "handler": function (response) {
-              sendToApp('success', response);
-            },
             "prefill": {
               "name": "${name || ''}",
               "email": "${email || ''}",
               "contact": "${contact || ''}"
             },
-            "theme": {
-              "color": "#3A8C3F"
-            },
+            "theme": { "color": "#3A8C3F" },
             "modal": {
               "ondismiss": function() {
-                sendToApp('cancelled');
-              }
-            }
+                sendToApp({ status: 'cancelled' });
+              },
+              "escape": false,
+              "backdropclose": false
+            },
+            "retry": { "enabled": true, "max_count": 3 }
           };
           
-          function sendToApp(status, data) {
-            const message = JSON.stringify({ status, data });
-            
-            // 1. Mobile App Bridge (Native)
+          function sendToApp(payload) {
+            const message = JSON.stringify(payload);
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(message);
-            } 
-            
-            // 2. Web/Browser Bridge (Iframe)
+            }
             if (window.parent && window.parent !== window) {
               window.parent.postMessage(message, "*");
             }
-            
-            // 3. Fallback for debugging
-            console.log("[PaymentBridge]", status, data);
           }
 
           try {
             const rzp = new Razorpay(options);
+            
             rzp.on('payment.failed', function (response){
-              sendToApp('failure', response.error);
+              sendToApp({ status: 'failure', message: response.error.description, data: response.error });
             });
+
+            // Handle successful payment
+            options.handler = function(response) {
+              sendToApp({ status: 'success', data: response });
+            };
+
+            // Auto-open
             window.onload = function() {
-              setTimeout(() => rzp.open(), 500);
+              rzp.open();
             };
           } catch(e) {
-            sendToApp('failure', { description: 'Failed to load Razorpay SDK' });
+            sendToApp({ status: 'failure', message: 'Razorpay SDK load failed' });
           }
         </script>
       </body>

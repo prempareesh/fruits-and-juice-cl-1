@@ -3,9 +3,16 @@ const twilio = require('twilio');
 // Initialize Twilio Client
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+const twilioPhone = process.env.TWILIO_PHONE_NUMBER;          // For SMS
 const adminPhone = process.env.ADMIN_PHONE_NUMBER;
 const whatsappAdminPhone = process.env.ADMIN_WHATSAPP_NUMBER || adminPhone;
+
+// WhatsApp MUST use the Twilio Sandbox number unless you have WhatsApp Business API approved.
+// Sandbox: whatsapp:+14155238886
+// If you have an approved number set TWILIO_WHATSAPP_FROM in env, otherwise sandbox is used.
+const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM
+  ? `whatsapp:${process.env.TWILIO_WHATSAPP_FROM}`
+  : 'whatsapp:+14155238886';  // Twilio Sandbox number
 
 let client;
 if (accountSid && authToken) {
@@ -41,42 +48,34 @@ exports.sendOrderNotification = async (req, res) => {
 
     // Build the exact message format requested by the user
     const message = `
-=================================
-🧃 NEW JUICE ORDER RECEIVED
-=================================
+🧾 *NEW ORDER RECEIPT*
+---------------------------------
+🆔 *Order ID:* #${id.slice(0, 8).toUpperCase()}
+⏰ *Time:* ${new Date(createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+---------------------------------
 
-Order ID: #${id.slice(0, 6).toUpperCase()}
+👤 *CUSTOMER DETAILS:*
+• *Name:* ${customerName}
+• *Phone:* ${customerPhone}
 
-Customer:
-${customerName}
+📍 *DELIVERY LOCATION:*
+• *Address:* ${address}
+• *Landmark:* ${landmark || 'Not specified'}
 
-Phone:
-${customerPhone}
+🛒 *ORDERED ITEMS:*
+${items.map((item, index) => `• ${item.name} (${item.quantity}x) - ₹${item.price}`).join('\n')}
 
-Delivery Address:
-${address}
+💰 *FINANCIAL SUMMARY:*
+• *Subtotal:* ₹${total}
+• *Delivery Fee:* FREE
+• *TOTAL AMOUNT:* ₹${total}
 
-Landmark:
-${landmark || 'N/A'}
+💳 *PAYMENT METHOD:*
+• ${paymentType === 'cod' ? 'Cash on Delivery' : 'Online Payment'}
 
-${latitude && longitude && latitude !== 0 ? `📍 Google Maps (Click to Navigate):
-https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : '📍 Coordinates not available (Follow address above)'}
-
-Ordered Items:
-------------------------
-${items.map((item, index) => `${index + 1}. ${item.name} x${item.quantity} — ₹${item.price}`).join('\n')}
-
-Subtotal: ₹${total - 40}
-Delivery Fee: ₹40
-Total: ₹${total}
-
-Payment Method:
-${paymentType === 'cod' ? 'Cash on Delivery' : 'Online Payment'}
-
-Order Time:
-${new Date(createdAt).toLocaleString()}
-
-=================================
+${latitude && longitude && latitude !== 0 ? `🗺️ *NAVIGATE:*
+https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
+---------------------------------
 `.trim();
 
     // Send SMS
@@ -92,10 +91,15 @@ ${new Date(createdAt).toLocaleString()}
     let whatsappResponse = null;
     let customerWhatsappResponse = null;
     if (process.env.ENABLE_WHATSAPP === 'true') {
+        // Ensure admin phone has + prefix
+        const toAdmin = whatsappAdminPhone.startsWith('+')
+          ? `whatsapp:${whatsappAdminPhone}`
+          : `whatsapp:+${whatsappAdminPhone}`;
+
         whatsappResponse = await client.messages.create({
             body: message,
-            from: `whatsapp:${twilioPhone}`,
-            to: `whatsapp:${whatsappAdminPhone}`
+            from: whatsappFrom,
+            to: toAdmin
         });
         console.log(`[Notification] Admin WhatsApp sent: ${whatsappResponse.sid}`);
 
@@ -115,7 +119,7 @@ ${new Date(createdAt).toLocaleString()}
 
                 customerWhatsappResponse = await client.messages.create({
                     body: customerMessage,
-                    from: `whatsapp:${twilioPhone}`,
+                    from: whatsappFrom,
                     to: `whatsapp:${formattedCustomerPhone}`
                 });
                 console.log(`[Notification] Customer WhatsApp sent: ${customerWhatsappResponse.sid}`);
