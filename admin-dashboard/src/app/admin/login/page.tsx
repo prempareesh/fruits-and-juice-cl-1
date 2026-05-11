@@ -1,17 +1,48 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const LoginPage = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const autoLogin = async () => {
+      const accessToken = searchParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        setLoading(true);
+        try {
+          const { data, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
+          if (sessionError) throw sessionError;
+
+          if (data.user) {
+            router.push('/admin/stores');
+          }
+        } catch (err: any) {
+          console.error('SSO Error:', err.message);
+          setError('Automatic login failed. Please login manually.');
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    autoLogin();
+  }, [searchParams, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

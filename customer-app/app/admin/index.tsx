@@ -4,6 +4,7 @@ import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, RefreshCcw } from 'lucide-react-native';
 import { COLORS } from '../../src/theme/tokens';
+import { supabase } from '../../lib/supabase';
 
 // The live Vercel URL
 const ADMIN_DASHBOARD_URL = 'https://admin-dashboard-juice.vercel.app/admin/login';
@@ -11,7 +12,20 @@ const ADMIN_DASHBOARD_URL = 'https://admin-dashboard-juice.vercel.app/admin/logi
 export default function AdminBridge() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [sessionUrl, setSessionUrl] = useState(ADMIN_DASHBOARD_URL);
   const webViewRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    async function getSessionAndBuildUrl() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Pass access_token and refresh_token to the dashboard for auto-login
+        const ssoUrl = `${ADMIN_DASHBOARD_URL}?access_token=${session.access_token}&refresh_token=${session.refresh_token}`;
+        setSessionUrl(ssoUrl);
+      }
+    }
+    getSessionAndBuildUrl();
+  }, []);
 
   const reload = () => {
     if (Platform.OS === 'web') {
@@ -45,7 +59,7 @@ export default function AdminBridge() {
         {Platform.OS === 'web' ? (
           /* WEB-FRIENDLY IFRAME */
           <iframe 
-            src={ADMIN_DASHBOARD_URL}
+            src={sessionUrl}
             style={{ 
               width: '100%', 
               height: '100%', 
@@ -58,7 +72,7 @@ export default function AdminBridge() {
           /* MOBILE-NATIVE WEBVIEW */
           <WebView
             ref={webViewRef}
-            source={{ uri: ADMIN_DASHBOARD_URL }}
+            source={{ uri: sessionUrl }}
             style={styles.webview}
             onLoadStart={() => setLoading(true)}
             onLoadEnd={() => setLoading(false)}
