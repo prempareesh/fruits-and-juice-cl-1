@@ -68,6 +68,7 @@ export default function LoginScreen() {
             
             if (userRole === 'admin') {
               console.log("[Auth] Admin login success. Redirecting to /admin");
+              // The /admin route now contains the WebView bridge to the new dashboard
               router.replace('/admin');
             } else {
               console.log("[Auth] Customer login success. Redirecting to /(tabs)");
