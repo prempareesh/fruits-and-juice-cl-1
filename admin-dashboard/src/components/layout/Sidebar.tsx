@@ -2,8 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, 
   ShoppingCart, 
@@ -43,7 +44,13 @@ const menuItems = [
 
 const Sidebar = ({ isCollapsed, setIsCollapsed, isOpenMobile, setIsOpenMobile }: SidebarProps) => {
   const pathname = usePathname();
+  const router = useRouter();
   const { currentStore } = useAppStore();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/admin/login');
+  };
 
   const dynamicMenuItems = [
     ...menuItems.filter(item => item.name !== 'Delivery Settings'),
@@ -123,10 +130,13 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isOpenMobile, setIsOpenMobile }:
 
       {/* Footer Area */}
       <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-        <button className={cn(
-          "flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all font-bold text-sm",
-          isCollapsed && "justify-center"
-        )}>
+        <button 
+          onClick={handleSignOut}
+          className={cn(
+            "flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all font-bold text-sm",
+            isCollapsed && "justify-center"
+          )}
+        >
           <LogOut size={22} />
           {!isCollapsed && <span>Sign Out</span>}
         </button>

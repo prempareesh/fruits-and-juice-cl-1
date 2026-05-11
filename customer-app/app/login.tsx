@@ -59,19 +59,22 @@ export default function LoginScreen() {
           if (user) {
             const { data, error } = await supabase
               .from('profiles')
-              .select('role')
+              .select('role, store_id')
               .eq('id', user.id)
               .maybeSingle();
             
-            // Professional DB-driven role check
-            const userRole = data?.role || 'user';
+            const userRole = data?.role || 'customer';
+            const storeId = data?.store_id;
             
-            if (userRole === 'admin') {
-              console.log("[Auth] Admin login success. Redirecting to /admin");
-              // The /admin route now contains the WebView bridge to the new dashboard
+            if (userRole === 'super_admin') {
+              console.log("[Auth] Super Admin detected. Opening Global Dashboard.");
               router.replace('/admin');
+            } else if (userRole === 'store_admin' && storeId) {
+              console.log(`[Auth] Store Admin detected for ${storeId}. Opening Store Dashboard.`);
+              // We pass the specific store ID to the bridge
+              router.replace(`/admin?storeId=${storeId}`);
             } else {
-              console.log("[Auth] Customer login success. Redirecting to /(tabs)");
+              console.log("[Auth] Customer detected. Staying in shop.");
               router.replace('/(tabs)');
             }
           } else {

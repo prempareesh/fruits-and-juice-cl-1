@@ -11,13 +11,36 @@ const LoginPage = () => {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const checkExistingSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Check role and redirect
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile?.role === 'super_admin' || profile?.role === 'store_admin') {
+          router.push('/admin/stores');
+          return;
+        }
+      }
+      setLoading(false);
+    };
+
     const autoLogin = async () => {
       const accessToken = searchParams.get('access_token');
       const refreshToken = searchParams.get('refresh_token');
+      const ssoError = searchParams.get('error');
+
+      if (ssoError === 'unauthorized') {
+        setError('Access denied. You do not have admin privileges.');
+      }
 
       if (accessToken && refreshToken) {
         setLoading(true);
@@ -35,9 +58,10 @@ const LoginPage = () => {
         } catch (err: any) {
           console.error('SSO Error:', err.message);
           setError('Automatic login failed. Please login manually.');
-        } finally {
           setLoading(false);
         }
+      } else {
+        checkExistingSession();
       }
     };
 

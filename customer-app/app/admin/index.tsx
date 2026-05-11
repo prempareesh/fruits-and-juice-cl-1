@@ -5,27 +5,42 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft, RefreshCcw } from 'lucide-react-native';
 import { COLORS } from '../../src/theme/tokens';
 import { supabase } from '../../lib/supabase';
+import { useLocalSearchParams } from 'expo-router';
 
 // The live Vercel URL
-const ADMIN_DASHBOARD_URL = 'https://admin-dashboard-juice.vercel.app/admin/login';
+const BASE_DASHBOARD_URL = 'https://admin-dashboard-juice.vercel.app';
+const FALLBACK_DASHBOARD_URL = `${BASE_DASHBOARD_URL}/admin/login`;
 
 export default function AdminBridge() {
   const router = useRouter();
+  const { storeId } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
-  const [sessionUrl, setSessionUrl] = useState(ADMIN_DASHBOARD_URL);
+  const [sessionUrl, setSessionUrl] = useState(FALLBACK_DASHBOARD_URL);
   const webViewRef = React.useRef<any>(null);
 
   React.useEffect(() => {
     async function getSessionAndBuildUrl() {
       const { data: { session } } = await supabase.auth.getSession();
+      
+      // Build the correct target path based on role/params
+      let targetPath = '/admin/stores'; // Default for Super Admin
+      
+      if (storeId) {
+        targetPath = `/admin/store/${storeId}/dashboard`;
+      }
+      
+      const baseUrl = `${BASE_DASHBOARD_URL}${targetPath}`;
+
       if (session) {
-        // Pass access_token and refresh_token to the dashboard for auto-login
-        const ssoUrl = `${ADMIN_DASHBOARD_URL}?access_token=${session.access_token}&refresh_token=${session.refresh_token}`;
+        // Pass access_token and refresh_token for SSO
+        const ssoUrl = `${baseUrl}?access_token=${session.access_token}&refresh_token=${session.refresh_token}`;
         setSessionUrl(ssoUrl);
+      } else {
+        setSessionUrl(FALLBACK_DASHBOARD_URL);
       }
     }
     getSessionAndBuildUrl();
-  }, []);
+  }, [storeId]);
 
   const reload = () => {
     if (Platform.OS === 'web') {

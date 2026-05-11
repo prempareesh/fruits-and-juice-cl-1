@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { 
@@ -12,17 +12,32 @@ import {
   Package,
   Layers,
   Image as ImageIcon,
-  ChevronRight,
   Plus,
-  Trash2
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 import AdminLayout from '@/components/layout/AdminLayout';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 const AddProductPage = () => {
   const router = useRouter();
-  const [sellingPrice, setSellingPrice] = useState('');
+  
+  // Form State
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('Fruit Juices');
   const [mrp, setMrp] = useState('');
+  const [sellingPrice, setSellingPrice] = useState('');
+  const [stock, setStock] = useState('100');
+  const [unit, setUnit] = useState('ml');
+  const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1613478223719-2ab802602423?w=800');
+  const [isActive, setIsActive] = useState(true);
+  
+  // UI State
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const calculateDiscount = () => {
     if (!sellingPrice || !mrp) return 0;
@@ -34,21 +49,81 @@ const AddProductPage = () => {
 
   const discount = calculateDiscount();
 
+  const handlePublish = async () => {
+    if (!name || !sellingPrice || !mrp) {
+      setError('Please fill in all required fields (Name, MRP, Selling Price)');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error: insertError } = await supabase
+        .from('products')
+        .insert([{
+          name,
+          description,
+          category,
+          price_per_kg: parseFloat(sellingPrice), // Mapping to your schema's column name
+          stock_kg: parseFloat(stock),           // Mapping to your schema's column name
+          image_url: imageUrl,
+          is_available: isActive,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (insertError) throw insertError;
+
+      setSuccess(true);
+      setTimeout(() => {
+        router.push('/admin/products');
+      }, 1500);
+
+    } catch (err: any) {
+      console.error('Error publishing product:', err);
+      setError(err.message || 'Something went wrong while saving the product.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AdminLayout>
-      {/* Mobile Top Header */}
-      <div className="flex items-center gap-4 mb-6 lg:mb-8">
-        <button 
-          onClick={() => router.back()}
-          className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl text-slate-500 shadow-sm"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div>
-          <h1 className="text-xl lg:text-3xl font-black text-slate-900 dark:text-white tracking-tight">New Product</h1>
-          <p className="text-[10px] lg:text-sm text-slate-500 font-bold uppercase tracking-widest">Adding to Inventory</p>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => router.back()}
+            className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl text-slate-500 shadow-sm hover:text-primary transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white tracking-tight">New Product</h1>
+            <p className="text-[10px] lg:text-sm text-slate-500 font-bold uppercase tracking-widest">Store Inventory</p>
+          </div>
         </div>
+
+        {/* Desktop Save Button */}
+        <button 
+          onClick={handlePublish}
+          disabled={loading || success}
+          className="hidden lg:flex items-center gap-2 px-8 py-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="animate-spin" size={20} /> : success ? <CheckCircle2 size={20} /> : <Save size={20} />}
+          {loading ? 'Publishing...' : success ? 'Published!' : 'Publish Product'}
+        </button>
       </div>
+
+      {error && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl font-bold text-sm"
+        >
+          {error}
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 pb-32 lg:pb-0">
         <div className="lg:col-span-2 space-y-6 lg:space-y-8">
@@ -63,9 +138,11 @@ const AddProductPage = () => {
             
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Product Title</label>
+                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Product Title*</label>
                 <input 
                   type="text" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Fresh Alphanso Mango Juice"
                   className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-sm lg:text-base"
                 />
@@ -73,6 +150,8 @@ const AddProductPage = () => {
               <div className="space-y-2">
                 <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Product Description</label>
                 <textarea 
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder="Tell customers about the taste and freshness..."
                   rows={4}
                   className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none transition-all font-medium text-sm resize-none"
@@ -81,14 +160,26 @@ const AddProductPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
-                  <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-sm appearance-none">
+                  <select 
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-sm"
+                  >
                     <option>Fruit Juices</option>
                     <option>Milkshakes</option>
+                    <option>Smoothies</option>
+                    <option>Fresh Fruits</option>
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Subcategory</label>
-                  <input type="text" placeholder="Cold Pressed" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-sm" />
+                  <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Stock Amount</label>
+                  <input 
+                    type="number" 
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    placeholder="100" 
+                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-sm" 
+                  />
                 </div>
               </div>
             </div>
@@ -100,45 +191,33 @@ const AddProductPage = () => {
               <div className="p-2 bg-secondary/10 rounded-xl text-secondary">
                 <DollarSign size={18} />
               </div>
-              <h3 className="text-lg lg:text-xl font-bold text-slate-900 dark:text-white">Pricing & Stock</h3>
+              <h3 className="text-lg lg:text-xl font-bold text-slate-900 dark:text-white">Pricing Strategy</h3>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">MRP (₹)</label>
-                  <input 
-                    type="number" 
-                    value={mrp}
-                    onChange={(e) => setMrp(e.target.value)}
-                    className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none font-black text-sm"
-                  />
+                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">MRP (₹)*</label>
+                <input 
+                  type="number" 
+                  value={mrp}
+                  onChange={(e) => setMrp(e.target.value)}
+                  className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none font-black text-sm"
+                />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Selling (₹)</label>
-                  <input 
-                    type="number" 
-                    value={sellingPrice}
-                    onChange={(e) => setSellingPrice(e.target.value)}
-                    className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none font-black text-sm text-primary"
-                  />
+                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Selling Price (₹)*</label>
+                <input 
+                  type="number" 
+                  value={sellingPrice}
+                  onChange={(e) => setSellingPrice(e.target.value)}
+                  className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none font-black text-sm text-primary"
+                />
               </div>
               <div className="col-span-2 lg:col-span-1 space-y-2">
-                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Discount (%)</label>
+                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Live Discount</label>
                 <div className="w-full py-4 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-black rounded-2xl flex items-center justify-center text-sm">
-                  {discount}% OFF Applied
+                  {discount}% OFF
                 </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Stock</label>
-                <input type="number" placeholder="100" className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none font-black text-sm" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] lg:text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Unit</label>
-                <select className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl font-black text-sm">
-                  <option>ml</option>
-                  <option>litres</option>
-                  <option>kg</option>
-                </select>
               </div>
             </div>
           </div>
@@ -149,32 +228,54 @@ const AddProductPage = () => {
           <div className="card-premium p-6 lg:p-8">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-3">
               <ImageIcon size={18} className="text-blue-500" />
-              Product Image
+              Display Image
             </h3>
-            <div className="aspect-square bg-slate-50 dark:bg-slate-800/50 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem] flex flex-col items-center justify-center p-6 text-center group hover:border-primary/50 transition-all cursor-pointer">
-              <div className="w-14 h-14 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center shadow-sm mb-4">
-                <Upload size={24} className="text-primary" />
-              </div>
-              <p className="text-xs font-black text-slate-900 dark:text-white">Upload Media</p>
-              <p className="text-[10px] text-slate-400 mt-1 font-bold">Max 2MB per file</p>
+            <div className="aspect-square bg-slate-50 dark:bg-slate-800/50 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem] overflow-hidden flex flex-col items-center justify-center group hover:border-primary/50 transition-all cursor-pointer">
+              {imageUrl ? (
+                <img src={imageUrl} className="w-full h-full object-cover" alt="Preview" />
+              ) : (
+                <>
+                  <div className="w-14 h-14 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center shadow-sm mb-4">
+                    <Upload size={24} className="text-primary" />
+                  </div>
+                  <p className="text-xs font-black text-slate-900 dark:text-white">Upload Media</p>
+                </>
+              )}
             </div>
+            <input 
+              type="text" 
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="Or paste Image URL"
+              className="w-full mt-4 px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none outline-none text-[10px] font-bold"
+            />
           </div>
 
           <div className="card-premium p-6 lg:p-8">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-3">
               <Layers size={18} className="text-purple-500" />
-              Organization
+              Status
             </h3>
             <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tags</label>
-                <input type="text" placeholder="Fresh, Organic..." className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none outline-none text-sm font-bold" />
-              </div>
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Active Status</span>
-                <div className="w-12 h-6 bg-primary rounded-full relative p-1 cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full absolute right-1" />
-                </div>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Available for Sale</span>
+                <button 
+                  onClick={() => setIsActive(!isActive)}
+                  className={cn(
+                    "w-12 h-6 rounded-full relative p-1 transition-all",
+                    isActive ? "bg-primary" : "bg-slate-300"
+                  )}
+                >
+                  <motion.div 
+                    animate={{ x: isActive ? 24 : 0 }}
+                    className="w-4 h-4 bg-white rounded-full" 
+                  />
+                </button>
+              </div>
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl">
+                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-black uppercase leading-relaxed">
+                  Visible to all customers instantly after publishing.
+                </p>
               </div>
             </div>
           </div>
@@ -183,22 +284,13 @@ const AddProductPage = () => {
 
       {/* MOBILE STICKY BOTTOM BAR */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 z-30 flex gap-3 shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)]">
-        <button className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-black text-sm text-slate-600 dark:text-slate-300">
-          Draft
-        </button>
-        <button className="flex-[2] py-4 bg-primary text-white rounded-2xl font-black text-sm shadow-xl shadow-primary/25 flex items-center justify-center gap-2">
-          <Save size={18} />
-          Publish Now
-        </button>
-      </div>
-      
-      {/* DESKTOP FLOATING BAR (Hidden on Mobile) */}
-      <div className="hidden lg:flex fixed bottom-10 right-10 flex-col gap-3 z-30 animate-in slide-in-from-right-10 duration-500">
-        <button className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-premium border border-slate-100 dark:border-slate-700 text-slate-500 hover:text-primary transition-all">
-          <Save size={24} />
-        </button>
-        <button className="p-4 bg-primary text-white rounded-2xl shadow-xl shadow-primary/30 hover:scale-105 transition-all">
-          <Plus size={24} />
+        <button 
+          onClick={handlePublish}
+          disabled={loading || success}
+          className="flex-1 py-4 bg-primary text-white rounded-2xl font-black text-sm shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+        >
+          {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+          {loading ? 'Publishing...' : success ? 'Success!' : 'Publish Now'}
         </button>
       </div>
     </AdminLayout>
