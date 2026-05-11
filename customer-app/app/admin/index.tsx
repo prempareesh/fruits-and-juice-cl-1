@@ -2,19 +2,24 @@ import React, { useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Platform, SafeAreaView, TouchableOpacity, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, RefreshCcw, ExternalLink } from 'lucide-react-native';
+import { ChevronLeft, RefreshCcw } from 'lucide-react-native';
 import { COLORS } from '../../src/theme/tokens';
 
-// IMPORTANT: Replace this with your actual Vercel URL after hosting
+// The live Vercel URL
 const ADMIN_DASHBOARD_URL = 'https://admin-dashboard-juice.vercel.app/admin/login';
 
 export default function AdminBridge() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const webViewRef = React.useRef<WebView>(null);
+  const webViewRef = React.useRef<any>(null);
 
   const reload = () => {
-    webViewRef.current?.reload();
+    if (Platform.OS === 'web') {
+      // For web, we just refresh the whole page or target the iframe
+      window.location.reload();
+    } else {
+      webViewRef.current?.reload();
+    }
   };
 
   return (
@@ -37,20 +42,34 @@ export default function AdminBridge() {
       </View>
 
       <View style={styles.webviewContainer}>
-        <WebView
-          ref={webViewRef}
-          source={{ uri: ADMIN_DASHBOARD_URL }}
-          style={styles.webview}
-          onLoadStart={() => setLoading(true)}
-          onLoadEnd={() => setLoading(false)}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={true}
-          scalesPageToFit={true}
-          // Optimization for mobile dashboard experience
-          allowsFullscreenVideo={true}
-          allowsInlineMediaPlayback={true}
-        />
+        {Platform.OS === 'web' ? (
+          /* WEB-FRIENDLY IFRAME */
+          <iframe 
+            src={ADMIN_DASHBOARD_URL}
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              border: 'none',
+              borderRadius: 0
+            }}
+            onLoad={() => setLoading(false)}
+          />
+        ) : (
+          /* MOBILE-NATIVE WEBVIEW */
+          <WebView
+            ref={webViewRef}
+            source={{ uri: ADMIN_DASHBOARD_URL }}
+            style={styles.webview}
+            onLoadStart={() => setLoading(true)}
+            onLoadEnd={() => setLoading(false)}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            scalesPageToFit={true}
+            allowsFullscreenVideo={true}
+            allowsInlineMediaPlayback={true}
+          />
+        )}
         
         {loading && (
           <View style={styles.loadingOverlay}>
@@ -76,6 +95,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
   },
   backBtn: {
     flexDirection: 'row',
@@ -97,6 +117,7 @@ const styles = StyleSheet.create({
   webviewContainer: {
     flex: 1,
     position: 'relative',
+    backgroundColor: '#F8FAFC',
   },
   webview: {
     flex: 1,
