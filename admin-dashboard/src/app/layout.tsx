@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/layout/Sidebar";
-import MobileNav from "@/components/layout/MobileNav";
-import BackgroundGradientSnippet from "@/components/ui/background-gradient-snippet";
 
-const inter = Inter({ subsets: ["latin"] });
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 
 export const metadata: Metadata = {
-  title: "Juice SaaS Admin",
-  description: "Production-grade Juice & Fruit Shop Admin Panel",
+  title: "Juicy App | Premium Admin Dashboard",
+  description: "Billion-dollar scale admin platform for fresh juice delivery",
 };
 
 export default function RootLayout({
@@ -19,15 +16,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-50 antialiased overflow-x-hidden`}>
-        <BackgroundGradientSnippet />
-        <div className="relative z-10">
-          <Sidebar />
-          <MobileNav />
-          <main className="md:ml-64 min-h-screen p-4 md:p-8 pb-24 md:pb-8">
-            {children}
-          </main>
-        </div>
+      <body className={`${outfit.variable} font-sans antialiased`}>
+        {children}
       </body>
     </html>
   );
