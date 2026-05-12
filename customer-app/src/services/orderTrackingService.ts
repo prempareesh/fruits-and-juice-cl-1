@@ -19,7 +19,7 @@ export const OrderTrackingService = {
    * TEST_MODE: auto-progresses the order through each step with realistic delays.
    * Set to false in production — admin drives status updates manually.
    */
-  TEST_MODE: true,
+  TEST_MODE: false,
 
   /**
    * Update order status in Supabase with full tracking history.

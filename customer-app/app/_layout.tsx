@@ -150,7 +150,6 @@ export default function RootLayout() {
             const oldStatus = payload.old.status;
             
             if (newStatus !== oldStatus) {
-              console.log(`[Notification] Order status updated to: ${newStatus}`);
               toastRef.current?.show(`Order Status Update: Your order is now ${newStatus.toUpperCase()}! 🥤`, 'info');
             }
           }
@@ -215,7 +214,8 @@ export default function RootLayout() {
                   },
                   headerTintColor: '#10b981',
                   headerTitleStyle: {
-                    fontFamily: 'Outfit_700Bold',
+                    fontFamily: 'Calibri',
+                    fontWeight: '700',
                   },
                   headerShadowVisible: false,
                   animation: 'slide_from_right',

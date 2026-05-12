@@ -17,7 +17,7 @@ export const COLORS = {
 export const TYPOGRAPHY = {
   ...NEW_TYPOGRAPHY,
   subtext: {
-    fontFamily: 'Outfit_400Regular',
+    fontFamily: 'Calibri',
     fontSize: 14,
     color: '#6B7280',
   }

@@ -17,7 +17,6 @@ import {
   Calendar,
   Loader2
 } from 'lucide-react';
-import { useParams } from 'next/navigation';
 import AdminLayout from '@/components/layout/AdminLayout';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -100,11 +99,10 @@ const IndianRupee = ({ size = 20, className = "" }: { size?: number, className?:
 );
 
 const DashboardPage = () => {
-  const params = useParams();
-  const storeId = params?.storeId as string;
   const { currentStore, setCurrentStore } = useAppStore();
   const [loading, setLoading] = useState(true);
-  const [storeName, setStoreName] = useState(currentStore?.name || 'Store');
+  const [mounted, setMounted] = useState(false);
+  const [storeName, setStoreName] = useState(currentStore?.name || 'Main');
   const [salesData, setSalesData] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -116,162 +114,128 @@ const DashboardPage = () => {
     products: 0
   });
 
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-
-  // Separate Effect for Store Metadata to avoid loops
+  // Effect to ensure a store is loaded
   useEffect(() => {
-    const fetchStoreDetails = async () => {
-      if (!storeId) return;
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storeId);
-      if (!isUuid) return;
-
-      const { data: storeData } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('id', storeId)
-        .maybeSingle();
-      
-      if (storeData) {
-        setStoreName(storeData.name);
-        setCurrentStore(storeData as any);
+    setMounted(true);
+    const ensureStore = async () => {
+      if (!currentStore) {
+        setCurrentStore({
+          id: 'default',
+          name: 'Main Store',
+          location: 'Digital Shop'
+        } as any);
+        setStoreName('Main Store');
+      } else {
+        setStoreName(currentStore.name);
       }
     };
 
-    fetchStoreDetails();
-  }, [storeId, setCurrentStore]);
+    ensureStore();
+  }, [currentStore, setCurrentStore]);
+
+  const isFetching = React.useRef(false);
 
   const fetchDashboardData = React.useCallback(async (isBackground = false) => {
-    if (!storeId) return;
-    
-    // Validate storeId is a valid UUID
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storeId);
-    if (!isUuid) return;
+    if (isFetching.current) return;
 
     try {
+      isFetching.current = true;
       if (!isBackground) setLoading(true);
 
-      const [ordersResult, productsResult, profilesResult, orderItemsResult] = await Promise.all([
+      const [ordersResult, productsResult, orderItemsResult] = await Promise.all([
         supabase
           .from('orders')
-          .select('*, profiles:user_id(full_name)')
-          .eq('store_id', storeId)
+          .select('id, created_at, total_amount, status, user_id, profiles(full_name)')
           .order('created_at', { ascending: false }),
         supabase
           .from('products')
-          .select('*')
-          .eq('store_id', storeId),
-        supabase
-          .from('profiles')
-          .select('id', { count: 'exact', head: true }),
+          .select('id, name, image_url'),
         supabase
           .from('order_items')
-          .select('*, orders!inner(store_id), products:product_id(name, image_url)')
-          .eq('orders.store_id', storeId)
+          .select('quantity, subtotal, products(name, image_url)')
       ]);
       
-      // Check for errors before processing
       if (ordersResult.error) throw ordersResult.error;
       if (productsResult.error) throw productsResult.error;
       if (orderItemsResult.error) throw orderItemsResult.error;
 
       const orders = ordersResult.data || [];
       const products = productsResult.data || [];
-      const customerCount = profilesResult.count || 0;
       const orderItems = orderItemsResult.data || [];
 
-      // Process Stats
-      const totalRevenue = orders.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+      const storeSpecificCustomers = new Set(orders.map(o => o.user_id)).size;
+
+      let totalRevenue = 0;
+      const distribution: Record<string, number> = {};
+      
+      orders.forEach(order => {
+        totalRevenue += Number(order.total_amount || 0);
+        const status = order.status?.toUpperCase() || 'UNKNOWN';
+        distribution[status] = (distribution[status] || 0) + 1;
+      });
+
       setStats({
         revenue: totalRevenue,
         orders: orders.length,
-        customers: customerCount,
+        customers: storeSpecificCustomers,
         products: products.length
       });
 
-      // Process Sales Chart (Last 7 Days)
       const last7Days = Array.from({ length: 7 }, (_, i) => {
         const date = subDays(new Date(), 6 - i);
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const dayOrders = orders.filter(o => format(new Date(o.created_at), 'yyyy-MM-dd') === dateStr);
+        
         return {
           name: format(date, 'EEE'),
-          date: format(date, 'yyyy-MM-dd'),
-          sales: 0,
-          orders: 0
+          date: dateStr,
+          sales: dayOrders.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0),
+          orders: dayOrders.length
         };
-      });
-
-      orders.forEach(order => {
-        try {
-          const orderDate = format(new Date(order.created_at), 'yyyy-MM-dd');
-          const day = last7Days.find(d => d.date === orderDate);
-          if (day) {
-            day.sales += Number(order.total_amount) || 0;
-            day.orders += 1;
-          }
-        } catch (e) {
-          console.error("Date parsing error for order:", order.id, e);
-        }
       });
       setSalesData(last7Days);
 
-      // Process Top Products
-      const productStats = orderItems.reduce((acc: any, curr: any) => {
-        const prodData = Array.isArray(curr.products) ? curr.products[0] : curr.products;
-        const prodName = prodData?.name || 'Unknown';
-        if (!acc[prodName]) {
-          acc[prodName] = { 
-            name: prodName, 
+      const productStats: Record<string, any> = {};
+      orderItems.forEach((item: any) => {
+        const product = item.products;
+        if (!product?.name) return;
+        if (!productStats[product.name]) {
+          productStats[product.name] = { 
+            name: product.name, 
             sales: 0, 
-            image: prodData?.image_url || 'https://images.unsplash.com/photo-1610970881699-44a5587cabec?w=100' 
+            image: product.image_url || 'https://images.unsplash.com/photo-1610970881699-44a5587cabec?w=100' 
           };
         }
-        acc[prodName].sales += Number(curr.quantity) || 0;
-        return acc;
-      }, {});
+        productStats[product.name].sales += Number(item.quantity) || 0;
+      });
       setTopProducts(Object.values(productStats).sort((a: any, b: any) => b.sales - a.sales).slice(0, 4));
 
-      // Process Recent Orders
       setRecentOrders(orders.slice(0, 5).map(o => {
         const profile = Array.isArray(o.profiles) ? o.profiles[0] : o.profiles;
-        let timeLabel = 'recently';
-        try {
-          timeLabel = formatDistanceToNow(new Date(o.created_at)) + ' ago';
-        } catch (e) {}
-        
         return {
           id: o.id.slice(0, 8),
           customer: profile?.full_name || 'Guest',
           status: o.status,
-          amount: Number(o.total_amount) || 0,
-          time: timeLabel
+          amount: Number(o.total_amount || 0),
+          time: mounted ? formatDistanceToNow(new Date(o.created_at)) + ' ago' : 'Recently'
         };
       }));
 
-      // Process Status Distribution
-      const distribution = orders.reduce((acc: any, curr) => {
-        const status = curr.status?.toUpperCase() || 'UNKNOWN';
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {});
-      
-      const distArray = Object.keys(distribution).map(key => ({
-        name: key,
-        value: distribution[key]
-      }));
+      const distArray = Object.entries(distribution).map(([name, value]) => ({ name, value }));
       setStatusDistribution(distArray);
 
     } catch (err) {
       console.error('Critical Error in Dashboard Data Fetch:', err);
     } finally {
       setLoading(false);
-      setIsFirstLoad(false);
+      isFetching.current = false;
     }
-  }, [storeId]); // Only recreate when storeId changes
+  }, [mounted]);
 
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // REALTIME AUTO-REFRESH
   useRealtime([
     { table: 'orders', callback: () => fetchDashboardData(true) },
     { table: 'products', callback: () => fetchDashboardData(true) },
@@ -284,7 +248,7 @@ const DashboardPage = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{storeName} Analytics</h1>
-          <p className="text-slate-500">Real-time performance overview for this branch</p>
+          <p className="text-slate-500">Real-time performance overview for your business</p>
         </div>
         
         <div className="flex items-center gap-3">

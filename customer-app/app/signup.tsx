@@ -349,11 +349,13 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   title: {
+    fontFamily: 'Calibri',
     fontSize: 30,
     fontWeight: '800',
     color: '#1e293b',
   },
   subtitle: {
+    fontFamily: 'Calibri',
     fontSize: 15,
     color: '#64748b',
     textAlign: 'center',
@@ -364,13 +366,26 @@ const styles = StyleSheet.create({
 
   inputGroup: { marginBottom: 18 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  label: { fontSize: 13, fontWeight: '700', color: '#374151' },
+  label: { 
+    fontFamily: 'Calibri',
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#374151', 
+    marginBottom: 8 
+  },
   errorTextSmall: { fontSize: 11, color: '#ef4444', fontWeight: '700' },
   inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 16, paddingHorizontal: 16, borderWidth: 1.5, borderColor: '#e2e8f0' },
   inputError: { borderColor: '#ef4444', backgroundColor: '#fff1f2' },
   inputSuccess: { borderColor: COLORS.primaryGreen, backgroundColor: '#f0fdf4' },
   errorContainer: { backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  input: { flex: 1, paddingVertical: 15, marginLeft: 12, fontSize: 15, color: '#1e293b' },
+  input: { 
+    fontFamily: 'Calibri',
+    flex: 1, 
+    paddingVertical: 16, 
+    marginLeft: 12, 
+    fontSize: 15, 
+    color: '#111827' 
+  },
 
   signupBtnContainer: {
     marginTop: 24,
@@ -389,10 +404,12 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     gap: 10,
   },
-  signupBtnText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '800',
+  signupBtnText: { 
+    fontFamily: 'Calibri',
+    color: '#FFFFFF', 
+    fontSize: 17, 
+    fontWeight: '900', 
+    marginRight: 10 
   },
 
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 28 },
@@ -428,6 +445,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   successTitle: {
+    fontFamily: 'Calibri',
     fontSize: 28,
     fontWeight: '900',
     color: '#1e293b',
@@ -450,6 +468,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   emailHighlight: {
+    fontFamily: 'Calibri',
     fontSize: 16,
     fontWeight: '800',
     color: COLORS.primaryGreen,

@@ -18,6 +18,7 @@ import {
 import AdminLayout from '@/components/layout/AdminLayout';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { useAppStore } from '@/store/useStore';
 
 const EditProductPage = () => {
   const router = useRouter();
@@ -38,6 +39,8 @@ const EditProductPage = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (id) fetchProduct();
@@ -71,9 +74,55 @@ const EditProductPage = () => {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError("Please upload an image file.");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `product-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('products')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('products')
+        .getPublicUrl(filePath);
+
+      setImageUrl(publicUrl);
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setError(err.message || "Failed to upload image.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleUpdate = async () => {
     if (!name || !price) {
       setError('Please fill in required fields (Name, Price)');
+      return;
+    }
+
+    const sPrice = parseFloat(price);
+    const sStock = parseFloat(stock);
+
+    if (isNaN(sPrice) || sPrice <= 0) {
+      setError("Price must be a positive number");
+      return;
+    }
+    if (isNaN(sStock) || sStock < 0) {
+      setError("Stock amount cannot be negative");
       return;
     }
 
@@ -237,9 +286,31 @@ const EditProductPage = () => {
               <ImageIcon size={18} className="text-blue-500" />
               Image URL
             </h3>
-            <div className="aspect-square bg-slate-50 dark:bg-slate-800/50 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem] overflow-hidden mb-4">
-              {imageUrl && <img src={imageUrl} className="w-full h-full object-cover" alt="Preview" />}
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="aspect-square bg-slate-50 dark:bg-slate-800/50 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem] overflow-hidden mb-4 relative cursor-pointer"
+            >
+              {isUploading && (
+                <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm z-10 flex items-center justify-center">
+                  <Loader2 className="animate-spin text-primary" size={32} />
+                </div>
+              )}
+              {imageUrl ? (
+                <img src={imageUrl} className="w-full h-full object-cover" alt="Preview" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center">
+                  <Upload size={24} className="text-slate-400 mb-2" />
+                  <p className="text-[10px] font-bold text-slate-400">Upload New</p>
+                </div>
+              )}
             </div>
+            <input 
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleImageUpload}
+            />
             <input 
               type="text" 
               value={imageUrl}

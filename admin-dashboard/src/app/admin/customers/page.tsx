@@ -66,7 +66,7 @@ const CustomersPage = () => {
       // Parallel Fetching
       const [profilesResult, ordersResult] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('orders').select('user_id, total_amount')
+        supabase.from('orders').select('*')
       ]);
       
       const profiles = profilesResult.data;
@@ -76,11 +76,13 @@ const CustomersPage = () => {
       if (ordersResult.error) throw ordersResult.error;
 
       // Process data
-      const orderStats = orders?.reduce((acc: any, curr) => {
+      const orderStats = orders?.reduce((acc: any, curr: any) => {
         const userId = curr.user_id;
         if (!acc[userId]) acc[userId] = { count: 0, total: 0 };
         acc[userId].count += 1;
-        acc[userId].total += Number(curr.total_amount) || 0;
+        // Resilient amount check
+        const amount = Number(curr.total_amount || curr.total_price || curr.amount || 0);
+        acc[userId].total += amount;
         return acc;
       }, {});
 
@@ -97,7 +99,7 @@ const CustomersPage = () => {
 
       setCustomers(formattedCustomers);
 
-      const totalSpent = orders?.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0) || 0;
+      const totalSpent = orders?.reduce((acc: any, curr: any) => acc + Number(curr.total_amount || curr.total_price || curr.amount || 0), 0) || 0;
       const totalProfiles = profiles?.length || 0;
 
       setStats({
@@ -136,7 +138,7 @@ const CustomersPage = () => {
             <span>Send Email</span>
           </button>
           <button 
-            onClick={fetchCustomers}
+            onClick={() => fetchCustomers()}
             className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
           >
             <MessageSquare size={18} />

@@ -30,9 +30,16 @@ interface SidebarProps {
   setIsOpenMobile: (val: boolean) => void;
 }
 
-const menuItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/analytics' },
-  { name: 'Live Orders', icon: ShoppingCart, href: '/admin/orders' },
+interface MenuItem {
+  name: string;
+  icon: any;
+  href: string;
+  badge?: string | null;
+}
+
+const menuItems: MenuItem[] = [
+  { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
+  { name: 'Live Orders', icon: ShoppingCart, href: '/admin/orders', badge: 'NEW' },
   { name: 'Products', icon: Package, href: '/admin/products' },
   { name: 'Inventory', icon: Layers, href: '/admin/inventory' },
   { name: 'Categories', icon: Layers, href: '/admin/categories' },
@@ -45,18 +52,21 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isOpenMobile, setIsOpenMobile }:
   const pathname = usePathname();
   const router = useRouter();
   const { currentStore } = useAppStore();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    router.push('/admin/login');
+    const CUSTOMER_APP_URL = "http://192.168.1.7:8081/login";
+    window.location.href = CUSTOMER_APP_URL;
   };
 
-  const dynamicMenuItems = menuItems.map(item => {
-    if (item.name === 'Dashboard' && currentStore) {
-      return { ...item, href: `/admin/store/${currentStore.id}/dashboard` };
-    }
-    return item;
-  });
+  const dynamicMenuItems = menuItems;
 
   const sidebarContent = (
     <div className="h-full flex flex-col">

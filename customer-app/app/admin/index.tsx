@@ -3,14 +3,15 @@ import { View, StyleSheet, ActivityIndicator, Platform, SafeAreaView, TouchableO
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, RefreshCcw } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../src/theme/tokens';
 import { supabase } from '../../lib/supabase';
 import { useLocalSearchParams } from 'expo-router';
 
-// The live Vercel URL
-// For local development, use your machine's IP (e.g., http://192.168.1.x:3000) or localhost for web
-const BASE_DASHBOARD_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.0.2.2:3000'; // 10.0.2.2 is Android emulator for localhost
-const FALLBACK_DASHBOARD_URL = `${BASE_DASHBOARD_URL}/admin/login`;
+// Use the local network IP for cross-device connectivity (Phone <-> Computer)
+const LOCAL_IP = '192.168.1.7'; 
+const BASE_DASHBOARD_URL = Platform.OS === 'web' ? `http://${LOCAL_IP}:3000` : `http://${LOCAL_IP}:3000`;
+const FALLBACK_DASHBOARD_URL = `${BASE_DASHBOARD_URL}/admin/dashboard`;
 
 export default function AdminBridge() {
   const router = useRouter();
@@ -24,17 +25,13 @@ export default function AdminBridge() {
       const { data: { session } } = await supabase.auth.getSession();
       
       // Build the correct target path based on role/params
-      let targetPath = '/admin/stores'; // Default for Super Admin
-      
-      if (storeId) {
-        targetPath = `/admin/store/${storeId}/dashboard`;
-      }
+      const targetPath = '/admin/dashboard';
       
       const baseUrl = `${BASE_DASHBOARD_URL}${targetPath}`;
 
       if (session) {
-        // Pass access_token and refresh_token for SSO
-        const ssoUrl = `${baseUrl}?access_token=${session.access_token}&refresh_token=${session.refresh_token}`;
+        // Pass access_token and refresh_token for SSO, plus storeId if available
+        const ssoUrl = `${baseUrl}?access_token=${session.access_token}&refresh_token=${session.refresh_token}${storeId ? `&storeId=${storeId}` : ''}`;
         setSessionUrl(ssoUrl);
       } else {
         setSessionUrl(FALLBACK_DASHBOARD_URL);
@@ -87,13 +84,18 @@ export default function AdminBridge() {
         {Platform.OS === 'web' ? (
           /* WEB-FRIENDLY REDIRECT OVERLAY */
           <View style={styles.loadingOverlay}>
+            <LinearGradient
+              colors={['#ffffff', '#f0fdf4']}
+              style={StyleSheet.absoluteFill}
+            />
             <ActivityIndicator size="large" color={COLORS.primaryGreen} />
-            <Text style={styles.loadingText}>Redirecting to Secure Admin Dashboard...</Text>
+            <Text style={styles.loadingTitle}>Authenticating Admin...</Text>
+            <Text style={styles.loadingSubtitle}>Securing your unified session</Text>
             <TouchableOpacity 
               onPress={() => window.location.href = sessionUrl}
-              style={{ marginTop: 20, padding: 10 }}
+              style={styles.manualRedirect}
             >
-              <Text style={{ color: COLORS.primaryGreen, fontWeight: '700' }}>Click here if not redirected</Text>
+              <Text style={styles.manualRedirectText}>Click here if not redirected automatically</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -171,6 +173,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+  },
+  loadingTitle: {
+    marginTop: 24,
+    fontSize: 20,
+    color: '#064e3b',
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  loadingSubtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  manualRedirect: {
+    marginTop: 40,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+  },
+  manualRedirectText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '700',
   },
   loadingText: {
     marginTop: 16,

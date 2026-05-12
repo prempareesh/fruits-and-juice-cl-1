@@ -14,7 +14,8 @@ import {
   Store,
   Moon,
   Sun,
-  Zap
+  Zap,
+  Loader2
 } from 'lucide-react';
 import { useAppStore } from '@/store/useStore';
 import { cn } from '@/lib/utils';
@@ -26,47 +27,94 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isOpenMobile, setIsOpenMobile] = useState(false);
-  const [userProfile, setUserProfile] = useState<{name: string, role: string} | null>(null);
+  const currentStore = useAppStore(state => state.currentStore);
+  const user = useAppStore(state => state.user);
+  const setUser = useAppStore(state => state.setUser);
   const [authLoading, setAuthLoading] = useState(true);
-  const { currentStore } = useAppStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isInitialized = React.useRef(false);
+  const checkAuthInProgress = React.useRef(false);
+
+  useEffect(() => {
+    if (isInitialized.current || checkAuthInProgress.current) return;
+
     const checkAuth = async () => {
+      checkAuthInProgress.current = true;
       try {
+        // 1. CHECK FOR SSO TOKENS IN URL FIRST
+        const searchParams = new URLSearchParams(window.location.search);
+        const accessToken = searchParams.get('access_token');
+        const refreshToken = searchParams.get('refresh_token');
+
+        if (accessToken && refreshToken) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (!sessionError) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          router.push('/admin/login');
+          const CUSTOMER_APP_URL = "http://192.168.1.7:8081/login";
+          window.location.href = CUSTOMER_APP_URL;
           return;
         }
 
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('full_name, role')
-          .eq('id', session.user.id)
-          .single();
+        // Only fetch profile if not already in store or if ID changed
+        if (!user || user.id !== session.user.id) {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('id, full_name, role')
+            .eq('id', session.user.id)
+            .single();
 
-        if (error || !profile || (profile.role !== 'super_admin' && profile.role !== 'store_admin' && profile.role !== 'admin')) {
-          console.error("Access denied: Not an admin");
-          await supabase.auth.signOut();
-          router.push('/admin/login?error=unauthorized');
-          return;
+          if (error || !profile || !['super_admin', 'store_admin', 'admin'].includes(profile.role)) {
+            await supabase.auth.signOut();
+            setUser(null);
+            window.location.href = "http://192.168.1.7:8081/login?error=unauthorized";
+            return;
+          }
+
+          setUser({
+            id: profile.id,
+            name: profile.full_name || 'Admin User',
+            role: profile.role,
+            email: session.user.email
+          });
         }
 
-        setUserProfile({
-          name: profile.full_name || 'Admin User',
-          role: profile.role
-        });
+        // AUTO-LOAD STORE INFO if not set
+        if (!currentStore) {
+          useAppStore.getState().setCurrentStore({
+            id: 'default',
+            name: 'Main Store',
+            location: 'Digital Shop'
+          } as any);
+        }
+        
+        isInitialized.current = true;
       } catch (err) {
         console.error("Auth Guard error:", err);
       } finally {
-        // Delay slightly for smooth transition
-        setTimeout(() => setAuthLoading(false), 100);
+        setAuthLoading(false);
+        checkAuthInProgress.current = false;
       }
     };
 
     checkAuth();
+  }, [setUser]); // Reduced dependencies to prevent redundant runs
 
+  useEffect(() => {
     // GLOBAL REALTIME NOTIFICATIONS
     const orderChannel = supabase
       .channel('global-order-notifications')
@@ -74,7 +122,6 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
         (payload) => {
-          console.log("[Realtime] New order received:", payload.new);
           toast({
             title: "🚀 New Order Received!",
             description: `A new order (#${payload.new.id.slice(0, 8)}) has been placed for ₹${payload.new.total_amount}.`,
@@ -89,7 +136,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     return () => {
       supabase.removeChannel(orderChannel);
     };
-  }, [router]);
+  }, []);
 
   // Memoized Sidebar and Navbar to prevent unnecessary re-renders
   const memoizedSidebar = React.useMemo(() => (
@@ -99,7 +146,15 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
       isOpenMobile={isOpenMobile}
       setIsOpenMobile={setIsOpenMobile}
     />
-  ), [isCollapsed, isOpenMobile]);
+  ), [isCollapsed, isOpenMobile, user, currentStore]);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex font-sans selection:bg-primary/10">
@@ -126,13 +181,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
                 />
               </div>
 
-              {/* Mobile Store Badge */}
-              <div className="lg:hidden flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-xl">
-                <Store size={14} className="text-primary" />
-                <span className="text-xs font-black text-primary truncate max-w-[100px]">
-                  {currentStore?.name || 'Main Store'}
-                </span>
-              </div>
+              {/* Removed Mobile Store Badge */}
             </div>
 
             <div className="flex items-center gap-2 lg:gap-4">
@@ -153,7 +202,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
                   <Skeleton className="w-8 h-8 rounded-xl" />
                 ) : (
                   <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-emerald-500 flex items-center justify-center text-white font-black text-xs">
-                    {userProfile?.name?.charAt(0) || 'A'}
+                    {user?.name?.charAt(0) || 'A'}
                   </div>
                 )}
                 <div className="hidden lg:block text-left min-w-[80px]">
@@ -165,10 +214,10 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
                   ) : (
                     <>
                       <p className="text-xs font-black text-slate-900 dark:text-white leading-tight truncate max-w-[120px]">
-                        {userProfile?.name}
+                        {user?.name}
                       </p>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                        {userProfile?.role === 'super_admin' ? 'Super Admin' : userProfile?.role === 'admin' ? 'System Admin' : 'Store Admin'}
+                        {user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'System Admin' : 'Store Admin'}
                       </p>
                     </>
                   )}
@@ -182,15 +231,36 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-10 scroll-smooth custom-scrollbar will-change-scroll">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={authLoading ? 'loading' : 'content'}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto w-full max-w-[1600px]"
-            >
-              {children}
-            </motion.div>
+            {authLoading ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="h-full flex flex-col items-center justify-center space-y-4"
+              >
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Zap className="text-primary animate-pulse" size={24} />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Securing Session</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Preparing your dashboard...</p>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="content"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="mx-auto w-full max-w-[1600px]"
+              >
+                {children}
+              </motion.div>
+            )}
           </AnimatePresence>
           
           {/* Mobile Bottom Spacer for Floating Actions */}

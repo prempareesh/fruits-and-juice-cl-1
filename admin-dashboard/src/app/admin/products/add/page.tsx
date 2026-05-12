@@ -21,6 +21,8 @@ import {
 import AdminLayout from '@/components/layout/AdminLayout';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { useAppStore } from '@/store/useStore';
 
 const AddProductPage = () => {
   const router = useRouter();
@@ -28,19 +30,23 @@ const AddProductPage = () => {
   // Form State
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Fruit Juices');
+  const [category, setCategory] = useState('fruit');
   const [mrp, setMrp] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
   const [stock, setStock] = useState('100');
   const [unit, setUnit] = useState('ml');
-  const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1613478223719-2ab802602423?w=800');
+  const [imageUrl, setImageUrl] = useState('');
   const [isActive, setIsActive] = useState(true);
+  
+  const { currentStore } = useAppStore();
+  const { toast } = useToast();
   
   // UI State
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const calculateDiscount = () => {
     if (!sellingPrice || !mrp) return 0;
@@ -52,9 +58,87 @@ const AddProductPage = () => {
 
   const discount = calculateDiscount();
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Basic validation
+    if (!file.type.startsWith('image/')) {
+      toast({ title: "Invalid File", description: "Please upload an image file.", variant: "destructive" });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File Too Large", description: "Maximum image size is 5MB.", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `product-images/${fileName}`;
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('products')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('products')
+        .getPublicUrl(filePath);
+
+      setImageUrl(publicUrl);
+      toast({ title: "Image Uploaded", description: "Product image updated successfully.", variant: "success" });
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      toast({ title: "Upload Failed", description: err.message || "Failed to upload image.", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handlePublish = async () => {
     if (!name || !sellingPrice || !mrp) {
-      setError('Please fill in all required fields (Name, MRP, Selling Price)');
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields (Name, MRP, Selling Price)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sPrice = parseFloat(sellingPrice);
+    const mPrice = parseFloat(mrp);
+    const sStock = parseFloat(stock);
+
+    if (isNaN(sPrice) || sPrice <= 0) {
+      toast({ title: "Validation Error", description: "Selling Price must be a positive number", variant: "destructive" });
+      return;
+    }
+    if (isNaN(mPrice) || mPrice <= 0) {
+      toast({ title: "Validation Error", description: "MRP must be a positive number", variant: "destructive" });
+      return;
+    }
+    if (isNaN(sStock) || sStock < 0) {
+      toast({ title: "Validation Error", description: "Stock amount cannot be negative", variant: "destructive" });
+      return;
+    }
+    if (sPrice > mPrice) {
+      toast({ title: "Validation Error", description: "Selling Price cannot be greater than MRP", variant: "destructive" });
+      return;
+    }
+
+    if (!currentStore?.id) {
+      toast({
+        title: "Configuration Error",
+        description: "No active store selected. Please go to Select Store page.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -68,8 +152,8 @@ const AddProductPage = () => {
           name,
           description,
           category,
-          price_per_kg: parseFloat(sellingPrice), // Mapping to your schema's column name
-          stock_kg: parseFloat(stock),           // Mapping to your schema's column name
+          price_per_kg: parseFloat(sellingPrice),
+          stock_kg: parseFloat(stock),
           image_url: imageUrl,
           is_available: isActive,
           created_at: new Date().toISOString()
@@ -78,41 +162,30 @@ const AddProductPage = () => {
       if (insertError) throw insertError;
 
       setSuccess(true);
-      setToast({ message: 'Product published successfully!', type: 'success' });
+      toast({
+        title: "Product Published",
+        description: `${name} is now live in your store!`,
+        variant: "success",
+      });
+      
       setTimeout(() => {
         router.push('/admin/products');
-      }, 2000);
+      }, 1500);
 
     } catch (err: any) {
       console.error('Error publishing product:', err);
-      setError(err.message || 'Something went wrong while saving the product.');
-      setToast({ message: 'Failed to publish product', type: 'error' });
+      toast({
+        title: "Publish Failed",
+        description: err.message || "Something went wrong while saving the product.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
-      setTimeout(() => setToast(null), 3000);
     }
   };
 
   return (
     <AdminLayout>
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={cn(
-              "fixed top-6 right-6 z-50 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm",
-              toast.type === 'success' ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
-            )}
-          >
-            {toast.type === 'success' ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-            {toast.message}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
@@ -189,10 +262,10 @@ const AddProductPage = () => {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-sm"
                   >
-                    <option>Fruit Juices</option>
-                    <option>Milkshakes</option>
-                    <option>Smoothies</option>
-                    <option>Fresh Fruits</option>
+                    <option value="fruit">Fresh Fruits</option>
+                    <option value="juice">Fruit Juices</option>
+                    <option value="fruit">Milkshakes</option>
+                    <option value="juice">Smoothies</option>
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -254,7 +327,15 @@ const AddProductPage = () => {
               <ImageIcon size={18} className="text-blue-500" />
               Display Image
             </h3>
-            <div className="aspect-square bg-slate-50 dark:bg-slate-800/50 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem] overflow-hidden flex flex-col items-center justify-center group hover:border-primary/50 transition-all cursor-pointer">
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="aspect-square bg-slate-50 dark:bg-slate-800/50 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem] overflow-hidden flex flex-col items-center justify-center group hover:border-primary/50 transition-all cursor-pointer relative"
+            >
+              {isUploading && (
+                <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm z-10 flex items-center justify-center">
+                  <Loader2 className="animate-spin text-primary" size={32} />
+                </div>
+              )}
               {imageUrl ? (
                 <img src={imageUrl} className="w-full h-full object-cover" alt="Preview" />
               ) : (
@@ -266,6 +347,13 @@ const AddProductPage = () => {
                 </>
               )}
             </div>
+            <input 
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleImageUpload}
+            />
             <input 
               type="text" 
               value={imageUrl}

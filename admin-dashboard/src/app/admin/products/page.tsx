@@ -26,6 +26,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRealtime } from '@/hooks/useRealtime';
+import { useAppStore } from '@/store/useStore';
 
 interface Product {
   id: string;
@@ -42,6 +43,8 @@ const ProductsPage = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('All');
+  const [displayLimit, setDisplayLimit] = useState(10);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -54,12 +57,18 @@ const ProductsPage = () => {
     { table: 'products', callback: () => fetchProducts(true) }
   ]);
 
+  const isFetching = React.useRef(false);
+
   const fetchProducts = async (isBackground = false) => {
+    if (isFetching.current) return;
+
     try {
+      isFetching.current = true;
       if (!isBackground) setLoading(true);
+      
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select('id, name, category, price_per_kg, stock_kg, image_url, is_available')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -68,6 +77,7 @@ const ProductsPage = () => {
       console.error('Error fetching products:', err);
     } finally {
       setLoading(false);
+      isFetching.current = false;
     }
   };
 
@@ -101,12 +111,18 @@ const ProductsPage = () => {
     }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const categories = ['All', ...new Set(products.map(p => p.category))];
 
-  const ProductCardMobile = ({ product }: { product: Product }) => (
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          p.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'All' || p.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const displayedProducts = filteredProducts.slice(0, displayLimit);
+
+  const ProductCardMobile = React.memo(({ product }: { product: Product }) => (
     <motion.div 
       whileTap={{ scale: 0.98 }}
       className="card-premium p-4 mb-4"
@@ -121,9 +137,6 @@ const ProductsPage = () => {
               <h4 className="font-black text-slate-900 dark:text-white truncate">{product.name}</h4>
               <p className="text-[10px] font-black text-primary uppercase tracking-widest mt-0.5">{product.category}</p>
             </div>
-            <button className="p-1 text-slate-400">
-              <MoreVertical size={18} />
-            </button>
           </div>
           <div className="flex items-center gap-4 mt-3">
             <div>
@@ -147,9 +160,6 @@ const ProductsPage = () => {
         >
           <Edit size={14} /> Edit
         </button>
-        <button className="flex-1 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2">
-          <Eye size={14} /> Preview
-        </button>
         <button 
           onClick={() => handleDeleteProduct(product.id)}
           disabled={deletingId === product.id}
@@ -159,7 +169,7 @@ const ProductsPage = () => {
         </button>
       </div>
     </motion.div>
-  );
+  ));
 
   return (
     <AdminLayout>
@@ -187,20 +197,32 @@ const ProductsPage = () => {
       </div>
 
       {/* Filters Bar */}
-      <div className="card-premium p-3 mb-6 flex items-center gap-3">
-        <div className="relative flex-1 group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={16} />
-          <input 
-            type="text" 
-            placeholder="Search items..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-transparent rounded-xl text-xs font-medium focus:border-primary/20 focus:ring-4 focus:ring-primary/5 outline-none transition-all"
-          />
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="card-premium p-3 flex-1 flex items-center gap-3">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search items..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-transparent rounded-xl text-xs font-medium focus:border-primary/20 focus:ring-4 focus:ring-primary/5 outline-none transition-all"
+            />
+          </div>
         </div>
-        <button className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500">
-          <Filter size={18} />
-        </button>
+        
+        <div className="card-premium p-3 sm:w-64">
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-slate-400" />
+            <select 
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="bg-transparent border-none outline-none text-xs font-bold w-full"
+            >
+              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Desktop View (Table) */}
@@ -226,7 +248,7 @@ const ProductsPage = () => {
                     </td>
                   </tr>
                 ))
-              ) : filteredProducts.map((product) => (
+              ) : displayedProducts.map((product) => (
                 <tr key={product.id} className="group hover:bg-slate-50/30 transition-all">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
@@ -278,7 +300,7 @@ const ProductsPage = () => {
       <div className="lg:hidden">
         {loading ? (
           [1, 2, 3].map(i => <div key={i} className="h-40 bg-slate-100 rounded-3xl mb-4 animate-pulse" />)
-        ) : filteredProducts.map(product => (
+        ) : displayedProducts.map(product => (
           <ProductCardMobile key={product.id} product={product} />
         ))}
         
@@ -290,6 +312,18 @@ const ProductsPage = () => {
           <Plus size={28} />
         </button>
       </div>
+
+      {/* Pagination / Load More */}
+      {!loading && displayedProducts.length < filteredProducts.length && (
+        <div className="flex justify-center mt-8 pb-10">
+          <button 
+            onClick={() => setDisplayLimit(prev => prev + 10)}
+            className="px-8 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-black text-xs hover:bg-primary hover:text-white transition-all shadow-sm"
+          >
+            Load More Products
+          </button>
+        </div>
+      )}
     </AdminLayout>
   );
 };

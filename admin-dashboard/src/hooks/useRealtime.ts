@@ -28,24 +28,25 @@ export function useRealtime(configs: RealtimeConfig[]) {
     const channelName = `db-changes-${Math.random().toString(36).substring(7)}`;
     const channel = supabase.channel(channelName);
 
-    configs.forEach((config) => {
+    configs.forEach((_, index) => {
       channel.on(
         'postgres_changes',
         {
-          event: config.event || '*',
-          schema: config.schema || 'public',
-          table: config.table,
-          filter: config.filter,
+          event: configs[index].event || '*',
+          schema: configs[index].schema || 'public',
+          table: configs[index].table,
+          filter: configs[index].filter,
         },
         (payload) => {
-          config.callback(payload);
+          // Always use the latest callback from the current configs
+          configsRef.current[index]?.callback(payload);
         }
       );
     });
 
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        console.log(`[Realtime] Subscribed to ${configs.map(c => c.table).join(', ')}`);
+        // Subscribed successfully
       }
     });
 

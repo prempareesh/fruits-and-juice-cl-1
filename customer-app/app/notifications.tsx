@@ -119,12 +119,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notifTitle: {
+    fontFamily: 'Calibri',
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.darkText,
     marginBottom: 4,
   },
   notifMessage: {
+    fontFamily: 'Calibri',
     fontSize: 14,
     color: COLORS.mutedGray,
     lineHeight: 20,
@@ -142,9 +144,10 @@ const styles = StyleSheet.create({
     paddingTop: 100,
   },
   emptyText: {
+    fontFamily: 'Calibri',
     marginTop: 16,
     fontSize: 16,
     color: COLORS.mutedGray,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

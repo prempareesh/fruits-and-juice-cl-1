@@ -20,8 +20,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Header } from '../../src/components/Header';
-import { HeroBanner } from '../../src/components/HeroBanner';
-import { FinancialHero } from '../../src/components/ui/hero-section';
 import { CategoryPill } from '../../src/components/CategoryPill';
 import PremiumCard from '../../src/components/ui/PremiumCard';
 import { SkeletonLoader } from '../../src/components/SkeletonLoader';
@@ -30,19 +28,14 @@ import { Toast, ToastHandle } from '../../src/components/ui/Toast';
 import { EmptyState } from '../../src/components/ui/EmptyState';
 import { OfflineBanner } from '../../src/components/OfflineBanner';
 import { useProducts } from '../../src/hooks/useProducts';
-import { ShoppingBag, Apple, Bean, Citrus, Leaf, X, Flame } from 'lucide-react-native';
+import { ShoppingBag, Apple, Bean, Citrus, Leaf, X } from 'lucide-react-native';
 import { useDebounce } from '../../src/hooks/useDebounce';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useCartStore } from '../../src/store/useCartStore';
 import { ProductService } from '../../src/services/ProductService';
-import Slideshow from '../../src/components/ui/slideshow';
 import { Product } from '../../src/types';
-import { AutoSlidingCarousel } from '../../src/components/AutoSlidingCarousel';
-import { HomeShowcaseSlider } from '../../src/components/HomeShowcaseSlider';
-import { ImageAutoSlider } from '../../src/components/ui/image-auto-slider';
-import { COLORS, SPACING, RADIUS } from '../../src/theme/colors';
+import { COLORS, SPACING } from '../../src/theme/colors';
 import { TYPOGRAPHY } from '../../src/theme/typography';
-import { getResponsiveCardCount, getResponsiveCardWidth } from '../../src/theme/responsive';
 
 const CATEGORIES = [
   { id: 'all', label: 'All', icon: <Citrus size={24} /> },
@@ -98,16 +91,8 @@ export default function HomeScreen() {
   const [priceRange, setPriceRange] = useState<number>(500);
   const [selectedSort, setSelectedSort] = useState<'none' | 'price_low' | 'price_high' | 'popular'>('popular');
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    if (!loading) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }).start();
-    }
+    // Logic removed for directness
   }, [loading]);
 
   const filteredProducts = useMemo(() => {
@@ -192,75 +177,34 @@ export default function HomeScreen() {
         updateCellsBatchingPeriod={100}
         removeClippedSubviews={Platform.OS === 'android'}
         ListHeaderComponent={
-          <View style={Platform.OS === 'web' ? { width: '100%', zIndex: 10 } : null}>
-             {Platform.OS === 'web' ? (
-               <FinancialHero 
-                 title={<>Pure Nature, <br /><span style={{ color: COLORS.primaryGreen }}>Pure Health.</span></>}
-                 description="Experience the future of refreshment with our cold-pressed, artisanal juices. Freshly delivered to your doorstep."
-                 buttonText="Shop Now"
-                 buttonLink="#"
-                 imageUrl1="https://images.unsplash.com/photo-1613478223719-2ab802602423?q=80&w=800"
-                 imageUrl2="https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?q=80&w=800"
-               />
-             ) : (
-               <>
-                 <Slideshow />
-                 <HeroBanner />
-               </>
-             )}
-            {!loading && featuredProducts.length > 0 && (
-              <AutoSlidingCarousel 
-                products={featuredProducts} 
-                onPressItem={(id) => router.push({ pathname: '/product/[id]', params: { id } })}
-              />
-            )}
-             <View style={styles.promoSection}>
-                <LinearGradient
-                  colors={['#FFECD2', '#FCB69F']}
-                  style={styles.promoCard}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 1}}
-                >
-                  <View>
-                    <Text style={styles.promoTitle}>Super Fresh Sale!</Text>
-                    <Text style={styles.promoSubtitle}>Get up to 30% off on all juices</Text>
-                  </View>
-                  <Flame color="#FF512F" size={32} />
-                </LinearGradient>
-             </View>
+          !searchQuery ? (
+            <View style={Platform.OS === 'web' ? { width: '100%', zIndex: 10 } : null}>
+              <View style={styles.categoryContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
+                  {CATEGORIES.map((cat) => (
+                    <CategoryPill
+                      key={cat.id}
+                      label={cat.label}
+                      icon={cat.icon ? React.cloneElement(cat.icon as React.ReactElement, { 
+                        color: activeCategory === cat.id ? COLORS.white : COLORS.darkText 
+                      }) : null}
+                      active={activeCategory === cat.id}
+                      onPress={() => setActiveCategory(cat.id)}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
 
-             {Platform.OS === 'web' ? (
-               <ImageAutoSlider products={featuredProducts.slice(0, 6)} />
-             ) : (
-               <HomeShowcaseSlider />
-             )}
-
-             <View style={styles.categoryContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
-                {CATEGORIES.map((cat) => (
-                  <CategoryPill
-                    key={cat.id}
-                    label={cat.label}
-                    icon={cat.icon ? React.cloneElement(cat.icon as React.ReactElement, { 
-                      color: activeCategory === cat.id ? COLORS.white : COLORS.darkText 
-                    }) : null}
-                    active={activeCategory === cat.id}
-                    onPress={() => setActiveCategory(cat.id)}
-                  />
-                ))}
-              </ScrollView>
-            </View>
-
-
-            <View style={styles.sectionHeader}>
-              <View style={{ paddingHorizontal: 0, marginVertical: 16 }}>
-                <Text style={TYPOGRAPHY.h2}>
-                  {activeCategory === 'all' ? 'Popular Items' : `${activeCategory.charAt(0).toUpperCase()}${activeCategory.slice(1)}s`}
-                </Text>
-                <Text style={styles.subtitleText}>Hand-picked freshness for you</Text>
+              <View style={styles.sectionHeader}>
+                <View style={{ paddingHorizontal: 0, marginVertical: 16 }}>
+                  <Text style={TYPOGRAPHY.h2}>
+                    {activeCategory === 'all' ? 'Popular Items' : `${activeCategory.charAt(0).toUpperCase()}${activeCategory.slice(1)}s`}
+                  </Text>
+                  <Text style={styles.subtitleText}>Hand-picked freshness for you</Text>
+                </View>
               </View>
             </View>
-          </View>
+          ) : null
         }
         renderItem={({ item, index }) => (
           <View style={{ width: cardWidth, flexShrink: 0 }}>
@@ -373,20 +317,6 @@ const styles = StyleSheet.create({
     maxWidth: 1400, // High-end desktop width
     paddingBottom: 40,
   },
-  promoSection: { paddingHorizontal: SPACING.md, marginTop: SPACING.md },
-  promoCard: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    padding: 24, 
-    borderRadius: 28,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  promoTitle: { fontSize: 20, fontWeight: '900', color: COLORS.darkText },
-  promoSubtitle: { fontSize: 13, color: 'rgba(0,0,0,0.6)', marginTop: 4, fontWeight: '600' },
   categoryContainer: { backgroundColor: COLORS.creamBackground, paddingVertical: 10 },
   categoryList: { paddingHorizontal: SPACING.md },
   section: { marginTop: SPACING.md },
@@ -397,7 +327,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md, 
     marginBottom: SPACING.lg 
   },
-  subtitleText: { fontSize: 13, color: COLORS.mutedGray, marginTop: 2, fontWeight: '500' },
+  subtitleText: { 
+    fontFamily: 'Calibri',
+    fontSize: 13, 
+    color: COLORS.mutedGray, 
+    marginTop: 2, 
+    fontWeight: '500' 
+  },
   sortBadge: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -455,11 +391,22 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl 
   },
   filterSection: { marginBottom: 32 },
-  filterLabel: { fontSize: 17, fontWeight: '900', color: COLORS.darkText, marginBottom: 18 },
+  filterLabel: { 
+    fontFamily: 'Calibri',
+    fontSize: 17, 
+    fontWeight: '900', 
+    color: COLORS.darkText, 
+    marginBottom: 18 
+  },
   sortOptions: { gap: 12 },
   sortBtn: { padding: 18, borderRadius: 20, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9' },
   sortBtnActive: { backgroundColor: '#F0FDF4', borderColor: COLORS.primaryGreen },
-  sortText: { fontSize: 15, fontWeight: '700', color: COLORS.darkText },
+  sortText: { 
+    fontFamily: 'Calibri',
+    fontSize: 15, 
+    fontWeight: '700', 
+    color: COLORS.darkText 
+  },
   sortTextActive: { color: COLORS.primaryGreen },
   priceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   priceBtn: { 
@@ -471,7 +418,12 @@ const styles = StyleSheet.create({
     borderColor: '#F1F5F9' 
   },
   priceBtnActive: { backgroundColor: '#FFF7ED', borderColor: COLORS.primaryOrange },
-  priceText: { fontSize: 14, fontWeight: '700', color: COLORS.darkText },
+  priceText: { 
+    fontFamily: 'Calibri',
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: COLORS.darkText 
+  },
   priceTextActive: { color: COLORS.primaryOrange },
   applyBtn: { 
     backgroundColor: COLORS.primaryGreen, 
@@ -484,5 +436,10 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     elevation: 8
   },
-  applyBtnText: { color: COLORS.white, fontSize: 18, fontWeight: '900' }
+  applyBtnText: { 
+    fontFamily: 'Calibri',
+    color: COLORS.white, 
+    fontSize: 18, 
+    fontWeight: '900' 
+  }
 });

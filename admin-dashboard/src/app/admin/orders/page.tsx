@@ -26,14 +26,16 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useRealtime } from '@/hooks/useRealtime';
 import Skeleton from '@/components/ui/Skeleton';
+import { useAppStore } from '@/store/useStore';
 
 const orderStatuses = [
   { label: 'All', value: 'all' },
-  { label: 'Pending', value: 'pending', color: 'bg-amber-500' },
-  { label: 'Accepted', value: 'accepted', color: 'bg-blue-500' },
-  { label: 'Preparing', value: 'preparing', color: 'bg-purple-500' },
-  { label: 'Delivery', value: 'out_for_delivery', color: 'bg-orange-500' },
-  { label: 'Done', value: 'delivered', color: 'bg-emerald-500' },
+  { label: 'Pending', value: 'PENDING', color: 'bg-amber-500' },
+  { label: 'Confirmed', value: 'CONFIRMED', color: 'bg-blue-500' },
+  { label: 'Preparing', value: 'PREPARING', color: 'bg-purple-500' },
+  { label: 'Packed', value: 'PACKED', color: 'bg-orange-500' },
+  { label: 'Delivery', value: 'OUT_FOR_DELIVERY', color: 'bg-indigo-500' },
+  { label: 'Delivered', value: 'DELIVERED', color: 'bg-emerald-500' },
 ];
 
 const OrdersPage = () => {
@@ -45,7 +47,10 @@ const OrdersPage = () => {
   const { toast } = useToast();
   const [displayLimit, setDisplayLimit] = useState(10);
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     fetchOrders();
   }, []);
 
@@ -59,14 +64,32 @@ const OrdersPage = () => {
       if (!isBackground) setLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          *,
-          profiles:user_id (full_name, phone)
-        `)
+        .select(`*`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders(data || []);
+
+      // Manually fetch profiles since FK is missing
+      if (data && data.length > 0) {
+        const userIds = Array.from(new Set(data.map(o => o.user_id).filter(Boolean)));
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone')
+          .in('id', userIds);
+        
+        const profileMap = (profileData || []).reduce((acc: any, p) => {
+          acc[p.id] = p;
+          return acc;
+        }, {});
+
+        const ordersWithProfiles = data.map(o => ({
+          ...o,
+          profiles: profileMap[o.user_id]
+        }));
+        setOrders(ordersWithProfiles);
+      } else {
+        setOrders([]);
+      }
     } catch (err) {
       console.error('Error fetching orders:', err);
     } finally {
@@ -75,14 +98,18 @@ const OrdersPage = () => {
   };
 
   const updateOrderStatus = async (orderId: string, currentStatus: string) => {
+    const statusUpper = currentStatus.toUpperCase();
     const nextStatusMap: any = {
-      'pending': 'accepted',
-      'accepted': 'preparing',
-      'preparing': 'out_for_delivery',
-      'out_for_delivery': 'delivered'
+      'PENDING': 'CONFIRMED',
+      'RECEIVED': 'CONFIRMED',
+      'CONFIRMED': 'PREPARING',
+      'PREPARING': 'PACKED',
+      'PACKED': 'OUT_FOR_DELIVERY',
+      'OUT_FOR_DELIVERY': 'DELIVERED',
+      'received': 'CONFIRMED'
     };
 
-    const nextStatus = nextStatusMap[currentStatus];
+    const nextStatus = nextStatusMap[statusUpper] || nextStatusMap[currentStatus];
     if (!nextStatus) return;
 
     setUpdatingId(orderId);
@@ -98,7 +125,7 @@ const OrdersPage = () => {
         description: `Order status changed to ${nextStatus.toUpperCase()}`,
         variant: "success",
       });
-      fetchOrders();
+      fetchOrders(true);
     } catch (err: any) {
       console.error('Error updating status:', err);
       toast({
@@ -143,7 +170,7 @@ const OrdersPage = () => {
         </div>
         <div className={cn(
           "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider",
-          order.status === 'delivered' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+          order.status?.toUpperCase() === 'DELIVERED' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
         )}>
           {order.status}
         </div>
@@ -194,7 +221,7 @@ const OrdersPage = () => {
         
         <div className="flex items-center gap-2 w-full md:w-auto">
           <button 
-            onClick={fetchOrders}
+            onClick={() => fetchOrders()}
             className="flex-1 md:flex-none p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl text-slate-500 flex items-center justify-center gap-2 font-bold text-xs"
           >
             <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
@@ -294,7 +321,7 @@ const OrdersPage = () => {
                     <td className="px-6 py-4">
                       <span className={cn(
                         "px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider",
-                        order.status === 'delivered' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                        order.status?.toUpperCase() === 'DELIVERED' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
                       )}>
                         {order.status}
                       </span>
@@ -302,10 +329,10 @@ const OrdersPage = () => {
                     <td className="px-6 py-4 text-right">
                       <button 
                         onClick={() => updateOrderStatus(order.id, order.status)}
-                        disabled={updatingId === order.id || order.status === 'delivered'}
+                        disabled={updatingId === order.id || order.status?.toUpperCase() === 'DELIVERED'}
                         className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-lg shadow-primary/10 hover:bg-primary/90 transition-all disabled:opacity-50"
                       >
-                        {updatingId === order.id ? 'Updating...' : order.status === 'delivered' ? 'Done' : 'Next Status'}
+                        {updatingId === order.id ? 'Updating...' : order.status?.toUpperCase() === 'DELIVERED' ? 'Done' : 'Next Status'}
                       </button>
                     </td>
                   </tr>

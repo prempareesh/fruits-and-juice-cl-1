@@ -25,8 +25,9 @@ export default function AdminLayout() {
           .maybeSingle();
 
         const role = profile?.role || 'user';
+        const isAdmin = ['admin', 'super_admin', 'store_admin'].includes(role);
 
-        if (role !== 'admin') {
+        if (!isAdmin) {
           console.warn('[AdminGuard] Unauthorized access attempt by', user.email);
           router.replace('/(tabs)');
         } else {

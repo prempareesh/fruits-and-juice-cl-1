@@ -140,16 +140,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
+    fontFamily: 'Calibri',
     fontSize: 32,
     fontWeight: '900',
     color: COLORS.darkText,
     letterSpacing: -0.5,
   },
   subtitle: {
+    fontFamily: 'Calibri',
     fontSize: 15,
     color: COLORS.mutedGray,
     marginTop: 6,
-    fontFamily: 'Poppins_400Regular',
   },
   cardContainer: {
     width: WINDOW_WIDTH,
@@ -190,6 +191,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.25)',
   },
   productName: {
+    fontFamily: 'Calibri',
     fontSize: 24,
     fontWeight: '900',
     color: '#FFFFFF',
@@ -206,6 +208,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   buyText: {
+    fontFamily: 'Calibri',
     fontSize: 13,
     fontWeight: '800',
     color: COLORS.primaryGreen,

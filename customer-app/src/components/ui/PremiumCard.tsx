@@ -11,7 +11,7 @@ import Animated, {
   useSharedValue, 
   useAnimatedStyle, 
   withSpring, 
-  FadeInUp,
+  FadeIn,
 } from 'react-native-reanimated';
 import { COLORS } from '../../theme/colors';
 import { TYPOGRAPHY } from '../../theme/typography';
@@ -105,9 +105,9 @@ const PremiumCard: React.FC<PremiumCardProps> = ({
   const delay = Math.min((index % 6) * 60, 300);
 
   return (
-    // OUTER: handles FadeInUp entrance — NO transform style here
-    <Animated.View entering={FadeInUp.delay(delay).springify()}>
-      {/* INNER: handles scale press transform — separate from layout animation */}
+    // OUTER: handles clean entrance — NO springify for better performance
+    <Animated.View entering={FadeIn.duration(400).delay(delay)}>
+      {/* INNER: handles subtle scale press transform */}
       <Animated.View style={[styles.container, animatedStyle]}>
         <Pressable
           onPress={onPress}
@@ -226,6 +226,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   ratingText: {
+    fontFamily: 'Calibri',
     fontSize: 10,
     fontWeight: '800',
     color: COLORS.luxuryDark,

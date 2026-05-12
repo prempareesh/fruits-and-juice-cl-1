@@ -122,7 +122,7 @@ export default function ProductDetail() {
           </TouchableOpacity>
         </View>
         
-        <Animated.View entering={FadeInDown.duration(800)} style={styles.content}>
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.content}>
           <View style={styles.headerInfo}>
             <View style={[styles.categoryBadge, { backgroundColor: isJuice ? '#e0f2fe' : '#f0fdf4' }]}>
               <Text style={[styles.categoryText, { color: isJuice ? '#0369a1' : '#15803d' }]}>
@@ -334,7 +334,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   categoryText: {
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 12,
   },
   ratingBox: {
@@ -346,18 +347,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   ratingText: {
-    fontFamily: 'Outfit_600SemiBold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 14,
     color: '#92400e',
     marginLeft: 6,
   },
   name: {
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 32,
     color: '#1e293b',
   },
   description: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Calibri',
     fontSize: 15,
     color: '#64748b',
     marginTop: 12,
@@ -385,12 +388,13 @@ const styles = StyleSheet.create({
     borderColor: '#f1f5f9',
   },
   statValue: {
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 16,
     color: '#1e293b',
   },
   statLabel: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Calibri',
     fontSize: 12,
     color: '#94a3b8',
   },
@@ -398,7 +402,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 18,
     color: '#1e293b',
     marginBottom: 18,
@@ -431,18 +436,20 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   variantName: {
-    fontFamily: 'Outfit_600SemiBold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 15,
     color: '#64748b',
   },
   variantPrice: {
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 22,
     color: '#1e293b',
     marginVertical: 4,
   },
   variantSize: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Calibri',
     fontSize: 12,
     color: '#94a3b8',
   },
@@ -476,18 +483,20 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   weightText: {
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 28,
     color: '#1e293b',
   },
   weightUnit: {
-    fontFamily: 'Outfit_600SemiBold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 16,
     color: '#64748b',
     marginLeft: 4,
   },
   priceHint: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Calibri',
     fontSize: 14,
     color: '#94a3b8',
     marginTop: 14,
@@ -516,12 +525,13 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   totalLabel: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Calibri',
     fontSize: 13,
     color: '#94a3b8',
   },
   totalPrice: {
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 26,
     color: '#1e293b',
   },
@@ -549,7 +559,8 @@ const styles = StyleSheet.create({
   },
   cartButtonText: {
     color: '#FFFFFF',
-    fontFamily: 'Outfit_700Bold',
+    fontFamily: 'Calibri',
+    fontWeight: '700',
     fontSize: 17,
   },
   disabledButton: {
@@ -565,6 +576,7 @@ const styles = StyleSheet.create({
   outOfStockTextSmall: {
     color: '#ef4444',
     fontSize: 10,
-    fontFamily: 'Outfit_700Bold',
-  }
+    fontFamily: 'Calibri',
+    fontWeight: '700',
+  },
 });

@@ -21,17 +21,18 @@ export const FinancialHero = ({
   imageUrl1,
   imageUrl2,
 }: FinancialHeroProps) => {
-  if (Platform.OS !== 'web') return null;
-
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
     ]).start();
   }, []);
+
+  if (Platform.OS !== 'web') return null;
 
   return (
     <View style={styles.section}>

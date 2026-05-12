@@ -70,14 +70,11 @@ export default function LoginScreen() {
             const storeId = data?.store_id;
             
             if (userRole === 'super_admin') {
-              console.log("[Auth] Super Admin detected. Opening Global Dashboard.");
               router.replace('/admin');
             } else if (userRole === 'store_admin' && storeId) {
-              console.log(`[Auth] Store Admin detected for ${storeId}. Opening Store Dashboard.`);
               // We pass the specific store ID to the bridge
               router.replace(`/admin?storeId=${storeId}`);
             } else {
-              console.log("[Auth] Customer detected. Staying in shop.");
               router.replace('/(tabs)');
             }
           } else {
@@ -91,7 +88,7 @@ export default function LoginScreen() {
       
       const timer = setTimeout(() => {
         checkRoleAndRedirect();
-      }, 2500);
+      }, 1500);
       return () => clearTimeout(timer);
     }
   }, [loginSuccess]);
@@ -390,6 +387,7 @@ const styles = StyleSheet.create({
   },
   successTitle: {
     color: COLORS.white,
+    fontFamily: 'Calibri',
     fontSize: 32,
     fontWeight: '900',
     textAlign: 'center',
@@ -408,11 +406,13 @@ const styles = StyleSheet.create({
   },
   successEmail: {
     color: COLORS.white,
+    fontFamily: 'Calibri',
     fontSize: 14,
     fontWeight: '700',
   },
   successSubtitle: {
     color: 'rgba(255,255,255,0.8)',
+    fontFamily: 'Calibri',
     fontSize: 15,
     textAlign: 'center',
     marginTop: 16,
@@ -461,26 +461,71 @@ const styles = StyleSheet.create({
   },
   logoGradient: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
   logo: { width: 70, height: 70, borderRadius: 35 },
-  title: { fontSize: 32, color: '#064e3b', fontWeight: '900' },
-  subtitle: { fontSize: 15, color: '#065f46', textAlign: 'center', marginTop: 8, opacity: 0.7 },
+  title: { 
+    fontFamily: 'Calibri',
+    fontSize: 32, 
+    color: '#064e3b', 
+    fontWeight: '900' 
+  },
+  subtitle: { 
+    fontFamily: 'Calibri',
+    fontSize: 15, 
+    color: '#065f46', 
+    textAlign: 'center', 
+    marginTop: 8, 
+    opacity: 0.7 
+  },
   form: { padding: 30, paddingBottom: 50 },
   inputGroup: { marginBottom: 15 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  label: { fontSize: 14, color: '#374151', fontWeight: '600' },
-  errorTextSmall: { fontSize: 11, color: '#ef4444', fontWeight: '700' },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', borderRadius: 16, paddingHorizontal: 16, borderWidth: 1.5, borderColor: '#e5e7eb', transition: 'all 0.2s' },
+  label: { 
+    fontFamily: 'Calibri',
+    fontSize: 14, 
+    color: '#374151', 
+    fontWeight: '700' 
+  },
+  errorTextSmall: { 
+    fontFamily: 'Calibri',
+    fontSize: 11, 
+    color: '#ef4444', 
+    fontWeight: '700' 
+  },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', borderRadius: 16, paddingHorizontal: 16, borderWidth: 1.5, borderColor: '#e5e7eb' },
   inputError: { borderColor: '#ef4444', backgroundColor: '#fff1f2' },
   inputSuccess: { borderColor: COLORS.primaryGreen, backgroundColor: '#f0fdf4' },
   errorContainer: { backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  input: { flex: 1, paddingVertical: 16, marginLeft: 12, fontSize: 16, color: '#111827' },
+  input: { 
+    fontFamily: 'Calibri',
+    flex: 1, 
+    paddingVertical: 16, 
+    marginLeft: 12, 
+    fontSize: 16, 
+    color: '#111827' 
+  },
   forgotBtn: { alignSelf: 'flex-end', marginTop: 10, paddingVertical: 4 },
-  forgotText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
+  forgotText: { 
+    fontFamily: 'Calibri',
+    fontSize: 13, 
+    color: '#64748b', 
+    fontWeight: '700' 
+  },
   loginBtnContainer: { marginTop: 25, borderRadius: 18, overflow: 'hidden', elevation: 8, shadowColor: '#10b981', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12 },
   loginBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 18 },
-  loginBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '900', marginRight: 10 },
+  loginBtnText: { 
+    fontFamily: 'Calibri',
+    color: '#FFFFFF', 
+    fontSize: 17, 
+    fontWeight: '900', 
+    marginRight: 10 
+  },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 25 },
   footerText: { fontSize: 15, color: '#6b7280' },
-  link: { fontSize: 15, color: '#059669', fontWeight: '700' },
+  link: { 
+    fontFamily: 'Calibri',
+    fontSize: 15, 
+    color: '#059669', 
+    fontWeight: '700' 
+  },
   legal: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 40 },
   legalText: { fontSize: 12, color: '#9ca3af', marginRight: 4 },
 });

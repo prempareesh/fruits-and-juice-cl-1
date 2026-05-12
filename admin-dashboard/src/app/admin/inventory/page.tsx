@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useRealtime } from '@/hooks/useRealtime';
 import { formatDistanceToNow } from 'date-fns';
+import { useAppStore } from '@/store/useStore';
 
 interface InventoryItem {
   id: string;
@@ -36,7 +37,9 @@ interface InventoryItem {
 const InventoryPage = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(10);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { toast } = useToast();
   const [stats, setStats] = useState({
@@ -46,6 +49,7 @@ const InventoryPage = () => {
   });
 
   useEffect(() => {
+    setMounted(true);
     fetchInventory();
   }, []);
 
@@ -54,12 +58,18 @@ const InventoryPage = () => {
     { table: 'products', callback: () => fetchInventory(true) }
   ]);
 
+  const isFetching = React.useRef(false);
+
   const fetchInventory = async (isBackground = false) => {
+    if (isFetching.current) return;
+
     try {
+      isFetching.current = true;
       if (!isBackground) setLoading(true);
+      
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select('id, name, category, stock_kg, created_at')
         .order('name');
       
       if (error) throw error;
@@ -77,7 +87,7 @@ const InventoryPage = () => {
           stock: stock,
           unit: 'kg',
           status,
-          lastUpdated: formatDistanceToNow(new Date(p.created_at || new Date())) + ' ago'
+          lastUpdated: mounted ? formatDistanceToNow(new Date(p.created_at || new Date())) + ' ago' : 'Recently'
         };
       });
 
@@ -93,6 +103,7 @@ const InventoryPage = () => {
       console.error('Error fetching inventory:', err);
     } finally {
       setLoading(false);
+      isFetching.current = false;
     }
   };
 
@@ -135,6 +146,8 @@ const InventoryPage = () => {
     i.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const displayedItems = filteredItems.slice(0, displayLimit);
+
   return (
     <AdminLayout>
 
@@ -150,7 +163,7 @@ const InventoryPage = () => {
             <span>Stock History</span>
           </button>
           <button 
-            onClick={fetchInventory}
+            onClick={() => fetchInventory()}
             className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
           >
             <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
@@ -224,7 +237,7 @@ const InventoryPage = () => {
                     </td>
                   </tr>
                 ))
-              ) : filteredItems.map((item) => (
+              ) : displayedItems.map((item) => (
                 <tr key={item.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all duration-200">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
@@ -284,6 +297,18 @@ const InventoryPage = () => {
           </table>
         </div>
       </div>
+
+      {/* Pagination / Load More */}
+      {!loading && displayedItems.length < filteredItems.length && (
+        <div className="flex justify-center mt-8 pb-10">
+          <button 
+            onClick={() => setDisplayLimit(prev => prev + 10)}
+            className="px-8 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-black text-xs hover:bg-primary hover:text-white transition-all shadow-sm"
+          >
+            Load More Items
+          </button>
+        </div>
+      )}
     </AdminLayout>
   );
 };

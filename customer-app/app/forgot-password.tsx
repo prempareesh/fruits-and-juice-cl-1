@@ -167,26 +167,77 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, padding: 32 },
   backArrow: { marginBottom: 32, marginLeft: -8 },
   header: { marginBottom: 40 },
-  title: { fontSize: 32, fontWeight: '900', color: '#1e293b' },
-  subtitle: { fontSize: 16, color: '#64748b', marginTop: 12, lineHeight: 24 },
+  title: { 
+    fontFamily: 'Calibri',
+    fontSize: 32, 
+    fontWeight: '900', 
+    color: '#1e293b' 
+  },
+  subtitle: { 
+    fontFamily: 'Calibri',
+    fontSize: 16, 
+    color: '#64748b', 
+    marginTop: 12, 
+    lineHeight: 24 
+  },
   form: { marginTop: 8 },
   inputGroup: { marginBottom: 24 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  label: { fontSize: 14, fontWeight: '700', color: '#374151' },
-  errorTextSmall: { fontSize: 11, color: '#ef4444', fontWeight: '700' },
+  label: { 
+    fontFamily: 'Calibri',
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#374151' 
+  },
+  errorTextSmall: { 
+    fontFamily: 'Calibri',
+    fontSize: 11, 
+    color: '#ef4444', 
+    fontWeight: '700' 
+  },
   inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 18, paddingHorizontal: 18, borderWidth: 1.5, borderColor: '#e2e8f0' },
   inputError: { borderColor: '#ef4444', backgroundColor: '#fff1f2' },
   inputSuccess: { borderColor: COLORS.primaryGreen, backgroundColor: '#f0fdf4' },
   errorContainer: { backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  input: { flex: 1, paddingVertical: 18, marginLeft: 12, fontSize: 16, color: '#1e293b' },
+  input: { 
+    fontFamily: 'Calibri',
+    flex: 1, 
+    paddingVertical: 18, 
+    marginLeft: 12, 
+    fontSize: 16, 
+    color: '#1e293b' 
+  },
   btnContainer: { borderRadius: 20, overflow: 'hidden', elevation: 8, shadowColor: '#10b981', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, marginTop: 16 },
   btn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 20, gap: 12 },
-  btnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  btnText: { 
+    fontFamily: 'Calibri',
+    color: '#fff', 
+    fontSize: 18, 
+    fontWeight: '800' 
+  },
   successContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   successIcon: { width: 100, height: 100, borderRadius: 50, marginBottom: 32 },
   iconGradient: { width: '100%', height: '100%', borderRadius: 50, justifyContent: 'center', alignItems: 'center' },
-  successTitle: { fontSize: 28, fontWeight: '900', color: '#1e293b', textAlign: 'center' },
-  successSubtitle: { fontSize: 16, color: '#64748b', textAlign: 'center', marginTop: 16, lineHeight: 24 },
+  successTitle: { 
+    fontFamily: 'Calibri',
+    fontSize: 28, 
+    fontWeight: '900', 
+    color: '#1e293b', 
+    textAlign: 'center' 
+  },
+  successSubtitle: { 
+    fontFamily: 'Calibri',
+    fontSize: 16, 
+    color: '#64748b', 
+    textAlign: 'center', 
+    marginTop: 16, 
+    lineHeight: 24 
+  },
   backBtnSuccess: { marginTop: 40, paddingVertical: 12 },
-  backBtnText: { color: '#10b981', fontSize: 16, fontWeight: '700' }
+  backBtnText: { 
+    fontFamily: 'Calibri',
+    color: '#10b981', 
+    fontSize: 16, 
+    fontWeight: '700' 
+  }
 });

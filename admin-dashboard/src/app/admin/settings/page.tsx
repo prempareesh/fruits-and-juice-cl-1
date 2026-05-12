@@ -26,6 +26,7 @@ import {
 import AdminLayout from '@/components/layout/AdminLayout';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { useAppStore } from '@/store/useStore';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -33,11 +34,11 @@ const SettingsPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Profile State
+  const { currentStore, user } = useAppStore();
   const [profile, setProfile] = useState({
-    full_name: '',
+    full_name: user?.name || '',
     phone: '',
-    email: 'admin@juicyapp.com'
+    email: user?.email || 'admin@juicyapp.com'
   });
 
   // Store Settings State
@@ -61,14 +62,21 @@ const SettingsPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch Profile (just grabbing first profile for now or current user if auth was fully setup)
-      const { data: profileData } = await supabase.from('profiles').select('*').limit(1).single();
-      if (profileData) {
-        setProfile({
-          full_name: profileData.full_name || '',
-          phone: profileData.phone || '',
-          email: 'admin@juicyapp.com'
-        });
+      // Fetch Profile for additional details like phone
+      if (user?.id) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+          
+        if (profileData) {
+          setProfile({
+            full_name: profileData.full_name || user.name || '',
+            phone: profileData.phone || '',
+            email: user.email || 'admin@juicyapp.com'
+          });
+        }
       }
 
       // Fetch Store Settings
@@ -98,8 +106,7 @@ const SettingsPage = () => {
     setSubmitting(true);
     try {
       if (activeTab === 'profile') {
-        const { data: user } = await supabase.from('profiles').select('id').limit(1).single();
-        if (user) {
+        if (user?.id) {
           const { error } = await supabase
             .from('profiles')
             .update({
@@ -110,12 +117,20 @@ const SettingsPage = () => {
           if (error) throw error;
         }
       } else if (activeTab === 'store') {
+        if (!storeSettings.id) {
+          throw new Error("Store ID missing. Please refresh.");
+        }
+
+        const minOrder = parseFloat(storeSettings.min_order_value) || 0;
+        const deliveryFee = parseFloat(storeSettings.delivery_fee) || 0;
+        const freeThreshold = parseFloat(storeSettings.free_delivery_threshold) || 0;
+
         const { error } = await supabase
           .from('store_settings')
           .update({
-            min_order_value: parseFloat(storeSettings.min_order_value),
-            delivery_fee: parseFloat(storeSettings.delivery_fee),
-            free_delivery_threshold: parseFloat(storeSettings.free_delivery_threshold),
+            min_order_value: minOrder,
+            delivery_fee: deliveryFee,
+            free_delivery_threshold: freeThreshold,
             shop_address: storeSettings.shop_address,
             contact_phone: storeSettings.contact_phone,
             contact_email: storeSettings.contact_email,

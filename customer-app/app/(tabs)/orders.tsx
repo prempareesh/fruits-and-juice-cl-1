@@ -40,7 +40,6 @@ export default function OrdersScreen() {
             filter: `user_id=eq.${user.id}`,
           },
           () => {
-            console.log("[Realtime] Orders changed, refetching...");
             fetchOrders(true);
           }
         )
@@ -79,12 +78,17 @@ export default function OrdersScreen() {
   }
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'received': return '#3b82f6';
-      case 'pending_payment': return '#94a3b8';
-      case 'processing': return '#f59e0b';
-      case 'completed': return '#10b981';
-      case 'cancelled': return '#ef4444';
+    const s = status.toUpperCase();
+    switch (s) {
+      case 'PENDING': return '#94a3b8';
+      case 'CONFIRMED': return '#3b82f6';
+      case 'PREPARING': return '#8b5cf6';
+      case 'PACKED': return '#f59e0b';
+      case 'OUT_FOR_DELIVERY': return '#6366f1';
+      case 'DELIVERED': return '#10b981';
+      case 'COMPLETED': return '#10b981';
+      case 'CANCELLED': return '#ef4444';
+      case 'RECEIVED': return '#3b82f6'; // Legacy support
       default: return '#64748b';
     }
   };

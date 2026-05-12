@@ -17,25 +17,28 @@ import {
   Activity,
   Loader2
 } from 'lucide-react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar,
-  Cell,
-  PieChart,
-  Pie
-} from 'recharts';
+import dynamic from 'next/dynamic';
+import Skeleton from '@/components/ui/Skeleton';
 import AdminLayout from '@/components/layout/AdminLayout';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useRealtime } from '@/hooks/useRealtime';
+import { useAppStore } from '@/store/useStore';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
+
+// Dynamic imports for charts to prevent hydration issues
+const AreaChart = dynamic(() => import('recharts').then(mod => mod.AreaChart), { ssr: false });
+const Area = dynamic(() => import('recharts').then(mod => mod.Area), { ssr: false });
+const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false });
+const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
+const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
+const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
+const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false });
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
+const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
+const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
 
 const COLORS = ['#84cc16', '#f97316', '#3b82f6', '#8b5cf6'];
 
@@ -61,101 +64,104 @@ const AnalyticsPage = () => {
     { table: 'profiles', callback: () => fetchAnalyticsData(true) }
   ]);
 
+  const isFetching = React.useRef(false);
+
   const fetchAnalyticsData = async (isBackground = false) => {
+    if (isFetching.current) return;
+    
     try {
+      isFetching.current = true;
       if (!isBackground) setLoading(true);
 
-      // 1. Fetch Orders for stats and chart
+      // 1. Fetch Orders - Only needed columns
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select('total_amount, status, created_at');
+        .select('id, created_at, total_amount, status')
+        .order('created_at', { ascending: false });
       
       if (ordersError) throw ordersError;
 
-      // 2. Fetch Customers count
-      const { count: customerCount, error: customerError } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-      
-      if (customerError) throw customerError;
+      // 2. Fetch Customer Count - More efficiently
+      const uniqueCustomers = new Set(orders?.map(o => o.user_id)).size || 0;
 
-      // 3. Fetch Top Products
+      // 3. Fetch Top Products - Specific columns
       const { data: orderItems, error: itemsError } = await supabase
         .from('order_items')
-        .select(`
-          quantity,
-          subtotal,
-          products (name, image_url)
-        `);
+        .select('quantity, subtotal, products(name, image_url)');
       
       if (itemsError) throw itemsError;
 
-      // Process Stats
-      const totalRevenue = orders?.reduce((acc, order) => acc + (Number(order.total_amount) || 0), 0) || 0;
+      // --- Processing data (Offload slightly if needed, but here we just optimize) ---
+      
+      // Stats
+      let totalRevenue = 0;
+      const statusCounts: any = {};
+      
+      orders?.forEach(order => {
+        totalRevenue += Number(order.total_amount || 0);
+        const status = order.status || 'pending';
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+      });
+
       const totalOrders = orders?.length || 0;
       const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
       setStats({
         revenue: totalRevenue,
         orders: totalOrders,
-        customers: customerCount || 0,
+        customers: uniqueCustomers,
         avgOrderValue
       });
 
-      // Process Chart Data (Last 6 months)
+      // Chart Data (Last 6 months)
       const last6Months = eachMonthOfInterval({
         start: subMonths(new Date(), 5),
         end: new Date()
       });
 
       const monthlyData = last6Months.map(month => {
-        const monthStr = format(month, 'MMM');
+        const monthKey = format(month, 'MMM yyyy');
         const monthOrders = orders?.filter(order => 
-          format(new Date(order.created_at), 'MMM yyyy') === format(month, 'MMM yyyy')
+          format(new Date(order.created_at), 'MMM yyyy') === monthKey
         ) || [];
         
         return {
-          name: monthStr,
-          revenue: monthOrders.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0),
+          name: format(month, 'MMM'),
+          revenue: monthOrders.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0),
           orders: monthOrders.length
         };
       });
 
       setChartData(monthlyData);
 
-      // Process Top Products
-      const productMap: any = {};
+      // Top Products processing
+      const productMap: Record<string, any> = {};
       orderItems?.forEach((item: any) => {
-        const name = item.products?.name;
-        if (!name) return;
-        if (!productMap[name]) {
-          productMap[name] = { 
-            name, 
+        const product = item.products;
+        if (!product?.name) return;
+        
+        if (!productMap[product.name]) {
+          productMap[product.name] = { 
+            name: product.name, 
             sales: 0, 
             revenue: 0, 
-            image: item.products.image_url 
+            image: product.image_url 
           };
         }
-        productMap[name].sales += Number(item.quantity) || 0;
-        productMap[name].revenue += Number(item.subtotal) || 0;
+        productMap[product.name].sales += Number(item.quantity) || 0;
+        productMap[product.name].revenue += Number(item.subtotal) || 0;
       });
 
       const sortedProducts = Object.values(productMap)
-        .sort((a: any, b: any) => b.sales - a.sales)
+        .sort((a, b) => b.sales - a.sales)
         .slice(0, 4);
       
       setTopProducts(sortedProducts);
 
-      // Process Order Status for Pie Chart
-      const statusCounts = orders?.reduce((acc: any, curr) => {
-        const status = curr.status || 'unknown';
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {});
-
-      const pieData = Object.entries(statusCounts || {}).map(([name, value]) => ({
+      // Pie Chart Data
+      const pieData = Object.entries(statusCounts).map(([name, value]) => ({
         name: name.charAt(0).toUpperCase() + name.slice(1),
-        value
+        value: value as number
       }));
 
       setOrderStatusData(pieData);
@@ -164,6 +170,7 @@ const AnalyticsPage = () => {
       console.error('Error fetching analytics:', err);
     } finally {
       setLoading(false);
+      isFetching.current = false;
     }
   };
 
@@ -193,7 +200,7 @@ const AnalyticsPage = () => {
             <span className="hidden sm:inline">All Time</span>
           </button>
           <button 
-            onClick={fetchAnalyticsData}
+            onClick={() => fetchAnalyticsData()}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl font-bold text-sm shadow-lg shadow-primary/20"
           >
             <Activity size={18} />
