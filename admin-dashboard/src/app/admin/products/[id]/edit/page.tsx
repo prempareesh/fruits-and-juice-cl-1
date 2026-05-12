@@ -85,24 +85,32 @@ const EditProductPage = () => {
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-      const filePath = `product-images/${fileName}`;
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'your_cloud_name';
+      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'your_upload_preset';
 
-      const { error: uploadError } = await supabase.storage
-        .from('products')
-        .upload(filePath, file);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', uploadPreset);
+      formData.append('folder', 'juice-shop-products');
 
-      if (uploadError) throw uploadError;
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('products')
-        .getPublicUrl(filePath);
+      const data = await response.json();
 
-      setImageUrl(publicUrl);
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to upload to Cloudinary');
+      }
+
+      setImageUrl(data.secure_url);
     } catch (err: any) {
-      console.error('Upload error:', err);
-      setError(err.message || "Failed to upload image.");
+      console.error('Cloudinary upload error:', err);
+      setError(err.message || "Failed to upload image to Cloudinary.");
     } finally {
       setIsUploading(false);
     }
