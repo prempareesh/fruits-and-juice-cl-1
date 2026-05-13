@@ -8,9 +8,7 @@ import { COLORS } from '../../src/theme/tokens';
 import { supabase } from '../../lib/supabase';
 import { useLocalSearchParams } from 'expo-router';
 
-// Use the local network IP for cross-device connectivity (Phone <-> Computer)
-const LOCAL_IP = '192.168.1.7'; 
-const BASE_DASHBOARD_URL = Platform.OS === 'web' ? `http://${LOCAL_IP}:3000` : `http://${LOCAL_IP}:3000`;
+const BASE_DASHBOARD_URL = 'https://admin-dashboard-juice-icmc.vercel.app';
 const FALLBACK_DASHBOARD_URL = `${BASE_DASHBOARD_URL}/admin/dashboard`;
 
 export default function AdminBridge() {

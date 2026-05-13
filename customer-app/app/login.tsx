@@ -71,8 +71,8 @@ export default function LoginScreen() {
             
             if (userRole === 'super_admin' || userRole === 'admin') {
               if (Platform.OS === 'web') {
-                // If on web, go directly to the high-performance dashboard
-                const DASHBOARD_URL = "http://localhost:3000/admin/dashboard";
+                // Production Vercel Dashboard URL
+                const DASHBOARD_URL = "https://admin-dashboard-juice-icmc.vercel.app/admin/dashboard";
                 window.location.href = DASHBOARD_URL;
               } else {
                 router.replace('/admin');
