@@ -69,10 +69,15 @@ export default function LoginScreen() {
             const userRole = data?.role || 'customer';
             const storeId = data?.store_id;
             
-            if (userRole === 'super_admin') {
-              router.replace('/admin');
+            if (userRole === 'super_admin' || userRole === 'admin') {
+              if (Platform.OS === 'web') {
+                // If on web, go directly to the high-performance dashboard
+                const DASHBOARD_URL = "http://localhost:3000/admin/dashboard";
+                window.location.href = DASHBOARD_URL;
+              } else {
+                router.replace('/admin');
+              }
             } else if (userRole === 'store_admin' && storeId) {
-              // We pass the specific store ID to the bridge
               router.replace(`/admin?storeId=${storeId}`);
             } else {
               router.replace('/(tabs)');
