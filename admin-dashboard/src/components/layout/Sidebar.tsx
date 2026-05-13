@@ -14,6 +14,7 @@ import {
   ChevronLeft, 
   ChevronRight,
   LogOut,
+  Power,
   Store,
   Layers,
   PieChart,
@@ -62,8 +63,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isOpenMobile, setIsOpenMobile }:
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    const CUSTOMER_APP_URL = "http://192.168.1.7:8081/login";
-    window.location.href = CUSTOMER_APP_URL;
+    const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://localhost:8081";
+    window.location.href = `${CUSTOMER_APP_URL}/login`;
   };
 
   const dynamicMenuItems = menuItems;
@@ -144,7 +145,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isOpenMobile, setIsOpenMobile }:
             isCollapsed && "justify-center"
           )}
         >
-          <LogOut size={22} />
+          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-rose-100 transition-colors">
+            <Power size={18} />
+          </div>
           {!isCollapsed && <span>Sign Out</span>}
         </button>
       </div>

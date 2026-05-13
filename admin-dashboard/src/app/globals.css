@@ -92,3 +92,49 @@ body {
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #1e293b;
 }
+
+/* Ultra-Aggressive Hide Next.js / Vercel Dev Indicators & Toolbars */
+#vercel-toolbar,
+.vercel-toolbar-container,
+[data-vercel-toolbar],
+#__next-prerender-indicator,
+[data-nextjs-toast],
+[data-nextjs-dialog-overlay],
+[data-devtools-toast],
+.nextjs-container-errors-header,
+.nextjs-container-errors,
+.nextjs-container-build-error,
+.nextjs-container-build-error-header,
+div[style*="font-family: system-ui"],
+div[style*="bottom: 0"][style*="left: 0"][style*="position: fixed"],
+[role="complementary"],
+[data-nextjs],
+.next-error,
+.next-error-code,
+[id*="__next"],
+[id*="vercel"],
+[id*="next"],
+[class*="nextjs"],
+[class*="vercel"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  position: fixed !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  z-index: -9999 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+/* Hide any floating badges or development indicators */
+[style*="position: fixed"][style*="bottom"][style*="right"],
+[style*="position: fixed"][style*="z-index: 9"],
+.dev-overlay,
+.dev-overlay-container {
+  display: none !important;
+}

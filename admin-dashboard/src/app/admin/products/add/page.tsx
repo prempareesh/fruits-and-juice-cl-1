@@ -379,7 +379,7 @@ const AddProductPage = () => {
                 <button 
                   onClick={() => setIsActive(!isActive)}
                   className={cn(
-                    "w-12 h-6 rounded-full relative p-1 transition-all",
+                    "w-12 h-6 rounded-full relative p-1 transition-all cursor-pointer",
                     isActive ? "bg-primary" : "bg-slate-300"
                   )}
                 >

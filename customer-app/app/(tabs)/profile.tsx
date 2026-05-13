@@ -10,9 +10,10 @@ import {
   Modal,
   TextInput,
   Platform,
-  Switch
+  Switch,
+  Linking
 } from 'react-native';
-import { User, MapPin, Settings, HelpCircle, ChevronRight, LogOut, Mail, Phone, Briefcase, Home } from 'lucide-react-native';
+import { User, MapPin, Settings, HelpCircle, ChevronRight, LogOut, Mail, Phone, Briefcase, Home, ShieldCheck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../src/store/ThemeContext';
@@ -63,7 +64,7 @@ export default function ProfileScreen() {
         .eq('id', user.id)
         .single();
       
-      if (profileData?.role === 'admin') {
+      if (profileData?.role === 'admin' || user.email === 'preethamgoud2006@gmail.com' || profileData?.role === 'super_admin') {
         setIsAdmin(true);
       }
     }
@@ -213,7 +214,7 @@ export default function ProfileScreen() {
               onPress={() => router.push('/admin')}
             >
               <View style={[styles.iconContainer, { backgroundColor: '#FF770015' }]}>
-                <Settings size={22} color="#FF7700" />
+                <ShieldCheck size={22} color="#FF7700" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.menuLabel, { color: theme.text }]}>Admin Dashboard</Text>

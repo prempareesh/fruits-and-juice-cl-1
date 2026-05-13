@@ -76,13 +76,14 @@ const AnalyticsPage = () => {
       // 1. Fetch Orders - Only needed columns
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select('id, created_at, total_amount, status')
+        .select('id, created_at, total_amount, status, user_id')
         .order('created_at', { ascending: false });
       
       if (ordersError) throw ordersError;
+      const allOrders = orders as any[];
 
       // 2. Fetch Customer Count - More efficiently
-      const uniqueCustomers = new Set(orders?.map(o => o.user_id)).size || 0;
+      const uniqueCustomers = new Set(allOrders?.map(o => o.user_id)).size || 0;
 
       // 3. Fetch Top Products - Specific columns
       const { data: orderItems, error: itemsError } = await supabase
@@ -97,7 +98,7 @@ const AnalyticsPage = () => {
       let totalRevenue = 0;
       const statusCounts: any = {};
       
-      orders?.forEach(order => {
+      allOrders?.forEach(order => {
         totalRevenue += Number(order.total_amount || 0);
         const status = order.status || 'pending';
         statusCounts[status] = (statusCounts[status] || 0) + 1;
@@ -121,7 +122,7 @@ const AnalyticsPage = () => {
 
       const monthlyData = last6Months.map(month => {
         const monthKey = format(month, 'MMM yyyy');
-        const monthOrders = orders?.filter(order => 
+        const monthOrders = allOrders?.filter(order => 
           format(new Date(order.created_at), 'MMM yyyy') === monthKey
         ) || [];
         

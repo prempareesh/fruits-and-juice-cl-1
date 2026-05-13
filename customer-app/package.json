@@ -5,7 +5,7 @@
   "version": "54.0.44",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
+    "start": "concurrently \"expo start\" \"cd ../admin-dashboard && npm run dev\" \"cd ../razorpay-backend && npm run dev\"",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
@@ -20,6 +20,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@supabase/supabase-js": "^2.104.1",
+    "@juice-shop/shared": "*",
     "axios": "^1.15.2",
     "balloons-js": "^0.0.3",
     "class-variance-authority": "^0.7.1",
@@ -64,6 +65,7 @@
   "devDependencies": {
     "@types/react": "~18.3.12",
     "babel-preset-expo": "~12.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^8.57.0",
     "eslint-config-expo": "~8.0.1",
     "typescript": "~5.3.3"

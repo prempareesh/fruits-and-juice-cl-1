@@ -1,0 +1,19 @@
+{
+  "name": "juice-shop-monorepo",
+  "private": true,
+  "workspaces": [
+    "admin-dashboard",
+    "customer-app",
+    "razorpay-backend",
+    "shared"
+  ],
+  "scripts": {
+    "start": "concurrently \"npm run dev --workspace=admin-dashboard\" \"npm run dev --workspace=razorpay-backend\" \"npm start --workspace=customer-app\"",
+    "prod": "concurrently \"npm run start --workspace=admin-dashboard\" \"npm run start --workspace=razorpay-backend\" \"npm start --workspace=customer-app\"",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

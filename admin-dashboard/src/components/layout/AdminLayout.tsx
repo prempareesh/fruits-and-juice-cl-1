@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import Skeleton from '@/components/ui/Skeleton';
 import { Toaster } from '@/components/ui/Toaster';
 import { toast } from '@/hooks/use-toast';
+import { useTheme } from 'next-themes';
 
 const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
@@ -31,6 +32,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   const user = useAppStore(state => state.user);
   const setUser = useAppStore(state => state.setUser);
   const [authLoading, setAuthLoading] = useState(true);
+  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -65,33 +67,45 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          const CUSTOMER_APP_URL = "http://192.168.1.7:8081/login";
-          window.location.href = CUSTOMER_APP_URL;
+          const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://localhost:8081";
+          window.location.href = `${CUSTOMER_APP_URL}/login`;
           return;
         }
 
-        // Only fetch profile if not already in store or if ID changed
-        if (!user || user.id !== session.user.id) {
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('id, full_name, role')
-            .eq('id', session.user.id)
-            .single();
+        const userEmail = session.user.email;
+        const ADMIN_EMAIL = "preethamgoud2006@gmail.com";
 
-          if (error || !profile || !['super_admin', 'store_admin', 'admin'].includes(profile.role)) {
-            await supabase.auth.signOut();
-            setUser(null);
-            window.location.href = "http://192.168.1.7:8081/login?error=unauthorized";
-            return;
+        // STRICT EMAIL-BASED BLOCKING
+        const isAuthorizedAdmin = userEmail === ADMIN_EMAIL;
+
+        if (!isAuthorizedAdmin) {
+          console.error('Unauthorized admin dashboard access attempt by:', userEmail);
+          
+          // Optional: Force logout if they aren't the admin to clear session
+          // await supabase.auth.signOut();
+          
+          if (typeof window !== 'undefined') {
+            localStorage.clear();
           }
-
-          setUser({
-            id: profile.id,
-            name: profile.full_name || 'Admin User',
-            role: profile.role,
-            email: session.user.email
-          });
+          const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://192.168.1.7:8081";
+          window.location.href = `${CUSTOMER_APP_URL}/login?error=unauthorized`;
+          return;
         }
+
+        // If they ARE the admin, fetch profile to get their name
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, role')
+          .eq('id', session.user.id)
+          .single();
+
+        // Update store with fresh data
+        setUser({
+          id: session.user.id,
+          name: profile?.full_name || 'Admin User',
+          role: isAuthorizedAdmin ? 'super_admin' : (profile?.role || 'admin'),
+          email: session.user.email
+        });
 
         // AUTO-LOAD STORE INFO if not set
         if (!currentStore) {
@@ -185,19 +199,12 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
             </div>
 
             <div className="flex items-center gap-2 lg:gap-4">
-              <button className="hidden sm:flex p-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all relative">
-                <Bell size={20} />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
-              </button>
-              
-              <button className="hidden sm:flex p-2.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all">
-                <Moon size={20} className="hidden dark:block" />
-                <Sun size={20} className="dark:hidden" />
-              </button>
-
-              <div className="h-8 w-[1px] bg-slate-100 dark:bg-slate-800 mx-1 hidden sm:block" />
-
-              <button className="flex items-center gap-2 p-1.5 lg:p-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-md transition-all">
+ 
+ 
+               <button 
+                onClick={() => router.push('/admin/settings')}
+                className="flex items-center gap-2 p-1.5 lg:p-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer"
+              >
                 {authLoading ? (
                   <Skeleton className="w-8 h-8 rounded-xl" />
                 ) : (
@@ -205,24 +212,6 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
                     {user?.name?.charAt(0) || 'A'}
                   </div>
                 )}
-                <div className="hidden lg:block text-left min-w-[80px]">
-                  {authLoading ? (
-                    <>
-                      <Skeleton className="h-3 w-20 mb-1" />
-                      <Skeleton className="h-2 w-12" />
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs font-black text-slate-900 dark:text-white leading-tight truncate max-w-[120px]">
-                        {user?.name}
-                      </p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                        {user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'System Admin' : 'Store Admin'}
-                      </p>
-                    </>
-                  )}
-                </div>
-                <ChevronDown size={14} className="text-slate-400 ml-1 hidden lg:block" />
               </button>
             </div>
           </div>

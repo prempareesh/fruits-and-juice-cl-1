@@ -31,6 +31,7 @@ interface PremiumCardProps {
   onAddToCart?: () => void;
   isAvailable?: boolean;
   variant?: string;
+  isSearching?: boolean;
 }
 
 /**
@@ -82,6 +83,7 @@ const PremiumCard: React.FC<PremiumCardProps> = ({
   onPress,
   onAddToCart,
   isAvailable = true,
+  isSearching = false,
 }) => {
   const scale = useSharedValue(1);
 
@@ -106,7 +108,9 @@ const PremiumCard: React.FC<PremiumCardProps> = ({
 
   return (
     // OUTER: handles clean entrance — NO springify for better performance
-    <Animated.View entering={FadeIn.duration(400).delay(delay)}>
+    <Animated.View 
+      entering={isSearching ? undefined : FadeIn.duration(400).delay(delay)}
+    >
       {/* INNER: handles subtle scale press transform */}
       <Animated.View style={[styles.container, animatedStyle]}>
         <Pressable

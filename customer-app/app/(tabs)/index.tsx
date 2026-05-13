@@ -148,8 +148,8 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      <Header />
-      <OfflineBanner />
+      {!searchQuery && <Header />}
+      {!searchQuery && <OfflineBanner />}
       <Toast ref={toastRef} />
       
       <SearchBar 
@@ -219,6 +219,7 @@ export default function HomeScreen() {
               isAvailable={item.is_available !== false}
               onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
               onAddToCart={() => handleAddToCart(item)}
+              isSearching={!!searchQuery}
             />
           </View>
         )}

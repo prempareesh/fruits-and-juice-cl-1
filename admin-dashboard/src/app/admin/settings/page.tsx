@@ -155,9 +155,6 @@ const SettingsPage = () => {
   const tabs = [
     { id: 'profile', label: 'Admin Profile', icon: User },
     { id: 'store', label: 'Store Details', icon: Store },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'api', label: 'API & Integrations', icon: Key },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
   return (
@@ -359,7 +356,7 @@ const SettingsPage = () => {
                       <button 
                         onClick={() => setStoreSettings({...storeSettings, is_delivery_active: !storeSettings.is_delivery_active})}
                         className={cn(
-                          "w-12 h-6 rounded-full p-1 relative transition-all",
+                          "w-12 h-6 rounded-full p-1 relative transition-all cursor-pointer",
                           storeSettings.is_delivery_active ? "bg-primary" : "bg-slate-300"
                         )}
                       >
