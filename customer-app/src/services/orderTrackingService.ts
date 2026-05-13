@@ -155,7 +155,7 @@ export const OrderTrackingService = {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('status, tracking_steps, estimated_delivery')
+        .select('status, tracking_steps, estimated_delivery, delivery_partner:delivery_partner_id(*)')
         .eq('id', orderId)
         .single();
 
@@ -165,6 +165,7 @@ export const OrderTrackingService = {
         status: normalizeStatus(data.status),
         steps: data.tracking_steps || [],
         estimatedDelivery: data.estimated_delivery || null,
+        deliveryPartner: data.delivery_partner || null,
       };
     } catch (err) {
       return null;

@@ -206,13 +206,44 @@ interface OrderTrackerProps {
   progressPercent: number;
   estimatedDelivery?: string | null;
   currentStatus: OrderStatus;
+  deliveryPartner?: any;
 }
+
+const PartnerCard = memo(({ partner }: { partner: any }) => {
+  if (!partner) return null;
+  
+  return (
+    <Animated.View 
+      entering={FadeInRight.delay(200).springify()}
+      style={styles.partnerCard}
+    >
+      <View style={styles.partnerHeader}>
+        <View style={styles.partnerInfo}>
+          <View style={styles.partnerAvatar}>
+            <Truck size={24} color="#3A8C3F" />
+          </div>
+          <View>
+            <Text style={styles.partnerName}>{partner.name}</Text>
+            <Text style={styles.partnerVehicle}>{partner.vehicle_type} • {partner.vehicle_number || 'No Plate'}</Text>
+          </View>
+        </View>
+        <TouchableOpacity 
+          style={styles.callBtn}
+          onPress={() => Alert.alert('Calling Partner', `Connecting to ${partner.phone}...`)}
+        >
+          <Text style={styles.callBtnText}>Call</Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+});
 
 export function OrderTracker({
   currentStepIndex,
   progressPercent,
   estimatedDelivery,
   currentStatus,
+  deliveryPartner,
 }: OrderTrackerProps) {
   const isCancelled = currentStatus === 'CANCELLED';
   const isDelivered = currentStatus === 'DELIVERED';
@@ -241,6 +272,9 @@ export function OrderTracker({
 
       {/* Progress bar */}
       <ProgressBar percent={progressPercent} />
+
+      {/* Delivery Partner Card */}
+      {deliveryPartner && <PartnerCard partner={deliveryPartner} />}
 
       {/* Steps */}
       <View style={styles.stepsContainer}>
@@ -425,5 +459,53 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
+  },
+  partnerCard: {
+    backgroundColor: '#F8FAF6',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E8F5E9',
+  },
+  partnerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  partnerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  partnerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#E8F5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  partnerName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  partnerVehicle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  callBtn: {
+    backgroundColor: '#3A8C3F',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  callBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

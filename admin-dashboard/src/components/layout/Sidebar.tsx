@@ -41,6 +41,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
   { name: 'Live Orders', icon: ShoppingCart, href: '/admin/orders', badge: 'NEW' },
+  { name: 'Delivery Management', icon: Truck, href: '/admin/delivery' },
   { name: 'Products', icon: Package, href: '/admin/products' },
   { name: 'Inventory', icon: Layers, href: '/admin/inventory' },
   { name: 'Categories', icon: Layers, href: '/admin/categories' },

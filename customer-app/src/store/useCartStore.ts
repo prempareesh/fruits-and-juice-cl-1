@@ -99,44 +99,44 @@ export const useCartStore = create<CartStore>()(
       getGrandTotal: () => get().getTotal() + get().deliveryFee,
       updateDeliveryFee: async (lat, lng) => {
         try {
-          // 1. Calculate distance from store
-          const distance = LocationService.calculateDistance(
-            STORE_CONFIG.latitude, 
-            STORE_CONFIG.longitude, 
-            lat, 
-            lng
-          );
-
-          // 2. Fetch active delivery configs
-          const { data: config, error } = await supabase
-            .from('delivery_fee_configs')
+          // 1. Fetch Store Settings for Shop Location & Max Radius
+          const { data: settings, error: sError } = await supabase
+            .from('store_settings')
             .select('*')
-            .eq('is_enabled', true)
             .limit(1)
             .single();
 
-          if (error || !config) {
-            set({ deliveryFee: 0 });
-            return 0;
+          if (sError || !settings) throw new Error("Store configuration missing");
+
+          // 2. Calculate Distance
+          const shopLat = settings.shop_latitude || STORE_CONFIG.latitude;
+          const shopLng = settings.shop_longitude || STORE_CONFIG.longitude;
+          
+          const distance = LocationService.calculateDistance(shopLat, shopLng, lat, lng);
+          const maxRadius = settings.max_delivery_radius || STORE_CONFIG.DEFAULT_MAX_RADIUS_KM;
+
+          // 3. Radius Blocking
+          if (distance > maxRadius) {
+            throw new Error(`Sorry, we don't deliver to your location yet. (Distance: ${distance}km, Max: ${maxRadius}km)`);
           }
 
-          // 3. Apply fee logic based on distance
+          // 4. Fetch Zones for Fees
+          const { data: zones } = await supabase
+            .from('delivery_zones')
+            .select('*')
+            .eq('is_active', true)
+            .order('min_distance');
+
           let fee = 0;
-          if (distance <= config.zone1_limit_km) {
-            fee = config.zone1_fee;
-          } else if (distance <= config.zone2_limit_km) {
-            fee = config.zone2_fee;
-          } else if (distance <= config.max_delivery_km) {
-            fee = config.zone2_fee; // Fallback to zone 2 or handle custom max fee
-          } else {
-            // Beyond max delivery
-            throw new Error(`Location is too far for delivery (${distance}km). Max range is ${config.max_delivery_km}km.`);
+          if (zones && zones.length > 0) {
+            const matchedZone = zones.find(z => distance >= z.min_distance && distance <= z.max_distance);
+            fee = matchedZone ? matchedZone.delivery_fee : zones[zones.length - 1].delivery_fee;
           }
 
           set({ deliveryFee: fee });
           return fee;
         } catch (err: any) {
-          console.warn('[CartStore] Delivery calculation failed:', err.message);
+          console.warn('[CartStore] Delivery validation failed:', err.message);
           set({ deliveryFee: 0 });
           throw err;
         }

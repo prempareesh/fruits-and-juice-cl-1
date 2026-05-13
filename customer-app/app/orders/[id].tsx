@@ -48,7 +48,8 @@ export default function OrderDetailsScreen() {
     progressPercent, 
     estimatedDelivery, 
     isDelivered, 
-    isCancelled 
+    isCancelled,
+    deliveryPartner
   } = useOrderTracking(id as string);
 
   useEffect(() => {
@@ -207,6 +208,7 @@ export default function OrderDetailsScreen() {
             progressPercent={progressPercent}
             estimatedDelivery={estimatedDelivery}
             currentStatus={currentStatus}
+            deliveryPartner={deliveryPartner}
           />
         </Animated.View>
 

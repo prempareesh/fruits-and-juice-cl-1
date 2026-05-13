@@ -28,16 +28,14 @@ export function useOrderTracking(orderId: string): OrderTrackingState {
   const [currentStatus, setCurrentStatus] = useState<OrderStatus>('PENDING');
   const [trackingSteps, setTrackingSteps] = useState<TrackingStep[]>([]);
   const [estimatedDelivery, setEstimatedDelivery] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [deliveryPartner, setDeliveryPartner] = useState<any | null>(null);
 
-  // Ref to hold auto-progression cleanup so it survives re-renders
-  const cleanupAutoProgressRef = useRef<(() => void) | null>(null);
-
-  const applyStatus = useCallback((rawStatus: string, steps: TrackingStep[], eta: string | null) => {
+  const applyStatus = useCallback((rawStatus: string, steps: TrackingStep[], eta: string | null, partner?: any) => {
     const normalized = normalizeStatus(rawStatus);
     setCurrentStatus(normalized);
     setTrackingSteps(steps || []);
     setEstimatedDelivery(eta);
+    if (partner) setDeliveryPartner(partner);
   }, []);
 
   // ── Initial fetch ────────────────────────────────────────────────────────
@@ -46,7 +44,7 @@ export function useOrderTracking(orderId: string): OrderTrackingState {
     try {
       const state = await OrderTrackingService.fetchTrackingState(orderId);
       if (state) {
-        applyStatus(state.status, state.steps, state.estimatedDelivery);
+        applyStatus(state.status, state.steps, state.estimatedDelivery, state.deliveryPartner);
       }
     } catch (err) {
       console.error('[useOrderTracking] Fetch failed:', err);
@@ -106,5 +104,6 @@ export function useOrderTracking(orderId: string): OrderTrackingState {
     isDelivered: currentStatus === 'DELIVERED',
     isCancelled: currentStatus === 'CANCELLED',
     isActive: currentStatus !== 'DELIVERED' && currentStatus !== 'CANCELLED',
+    deliveryPartner,
   };
 }
