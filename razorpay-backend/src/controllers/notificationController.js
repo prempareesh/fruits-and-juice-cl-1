@@ -85,44 +85,50 @@ https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
 ---------------------------------
 `.trim();
 
-    // Send SMS
-    const smsResponse = await client.messages.create({
-      body: message,
-      from: twilioPhone,
-      to: adminPhone
-    });
+    // 1. SEND SMS (Wrapped in try-catch)
+    let smsResponse = null;
+    try {
+      smsResponse = await client.messages.create({
+        body: message,
+        from: twilioPhone,
+        to: adminPhone
+      });
+      console.log(`[Notification] SMS sent: ${smsResponse.sid}`);
+    } catch (err) {
+      console.error('[Notification] SMS Failed:', err.message);
+    }
 
-    console.log(`[Notification] SMS sent: ${smsResponse.sid}`);
-
-    // Send WhatsApp (if configured)
+    // 2. SEND WHATSAPP (Wrapped in try-catch)
     let whatsappResponse = null;
     let customerWhatsappResponse = null;
     if (process.env.ENABLE_WHATSAPP === 'true') {
         // Send to Admin
         if (whatsappAdminPhone) {
             try {
-                let adminRaw = whatsappAdminPhone.toString();
+                let adminRaw = whatsappAdminPhone ? whatsappAdminPhone.toString() : '';
                 let adminFormatted = adminRaw.replace(/\D/g, '');
                 
                 if (adminFormatted.length === 10) {
                     adminFormatted = `+91${adminFormatted}`;
-                } else if (!adminRaw.startsWith('+')) {
+                } else if (adminRaw && !adminRaw.startsWith('+')) {
                     adminFormatted = `+${adminFormatted}`;
                 } else {
                     adminFormatted = adminRaw;
                 }
 
-                const toAdmin = `whatsapp:${adminFormatted}`;
-                console.log(`[Twilio] ATTEMPTING ADMIN WHATSAPP -> To: ${toAdmin}, From: ${whatsappFrom}`);
+                if (adminFormatted) {
+                  const toAdmin = `whatsapp:${adminFormatted}`;
+                  console.log(`[Twilio] ATTEMPTING ADMIN WHATSAPP -> To: ${toAdmin}, From: ${whatsappFrom}`);
 
-                whatsappResponse = await client.messages.create({
-                    body: message,
-                    from: whatsappFrom,
-                    to: toAdmin
-                });
-                console.log(`[Twilio] SUCCESS! Admin WhatsApp SID: ${whatsappResponse.sid}`);
+                  whatsappResponse = await client.messages.create({
+                      body: message,
+                      from: whatsappFrom,
+                      to: toAdmin
+                  });
+                  console.log(`[Twilio] SUCCESS! Admin WhatsApp SID: ${whatsappResponse.sid}`);
+                }
             } catch (err) {
-                console.error('[Twilio] ERROR sending to admin:', err.message, '| Admin Phone:', whatsappAdminPhone);
+                console.error('[Twilio] ERROR sending to admin:', err.message);
             }
         }
 
@@ -132,48 +138,42 @@ https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
                 let rawPhone = customerPhone.toString();
                 let formattedCustomerPhone = rawPhone.replace(/\D/g, '');
                 
-                // If it's a 10-digit number, assume India (+91)
                 if (formattedCustomerPhone.length === 10) {
                     formattedCustomerPhone = `+91${formattedCustomerPhone}`;
                 } else if (!rawPhone.startsWith('+')) {
                     formattedCustomerPhone = `+${formattedCustomerPhone}`;
                 } else {
-                    formattedCustomerPhone = rawPhone; // Already has +
+                    formattedCustomerPhone = rawPhone;
                 }
 
                 const toCustomer = `whatsapp:${formattedCustomerPhone}`;
-                const fromNum = whatsappFrom;
-                
-                console.log(`[Twilio] ATTEMPTING CUSTOMER WHATSAPP -> To: ${toCustomer}, From: ${fromNum}`);
-
                 const customerMessage = `Hi ${customerName},\n\nYour order #${id.slice(0, 6).toUpperCase()} has been received and is being processed!\n\nTotal: ₹${total}\nPayment: ${paymentType === 'cod' ? 'Cash on Delivery' : 'Online Payment'}\n\nThank you for choosing Juicy App! 🧃`;
 
                 customerWhatsappResponse = await client.messages.create({
                     body: customerMessage,
-                    from: fromNum,
+                    from: whatsappFrom,
                     to: toCustomer
                 });
                 console.log(`[Twilio] SUCCESS! Customer WhatsApp SID: ${customerWhatsappResponse.sid}`);
             } catch (err) {
-                console.error('[Twilio] ERROR sending to customer:', err.message, '| Attempted Phone:', customerPhone);
+                console.error('[Twilio] ERROR sending to customer:', err.message);
             }
         }
-    } else {
-        console.log('[Twilio] WhatsApp disabled. ENABLE_WHATSAPP is:', process.env.ENABLE_WHATSAPP);
     }
 
     res.status(200).json({ 
         success: true, 
-        message: 'Notifications sent successfully',
-        smsSid: smsResponse.sid,
-        whatsappSid: whatsappResponse ? whatsappResponse.sid : null
+        message: 'Notification processing complete',
+        smsSent: !!smsResponse,
+        whatsappSent: !!whatsappResponse,
+        customerWhatsappSent: !!customerWhatsappResponse
     });
 
   } catch (error) {
-    console.error('[Notification] Twilio Error:', error);
+    console.error('[Notification] Global Error:', error);
     res.status(500).json({ 
         success: false, 
-        message: 'Failed to send notification', 
+        message: 'Internal server error during notification', 
         error: error.message 
     });
   }

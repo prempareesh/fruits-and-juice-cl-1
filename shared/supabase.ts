@@ -1,7 +1,17 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // Version: 2026.05.13.01 - Force Vercel Refresh
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const sanitizeUrl = (url: string) => {
+  if (!url || url.includes('placeholder')) return url;
+  // Fix for the recursive URL bug seen in production
+  if ((url.match(/http/g) || []).length > 1) {
+    const parts = url.split('http');
+    return 'http' + parts[1].replace(/:$/, ''); // Take the first valid part
+  }
+  return url;
+};
+
+const supabaseUrl = sanitizeUrl(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co');
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
 
 // Detect platform without hard-depending on react-native for web compatibility
