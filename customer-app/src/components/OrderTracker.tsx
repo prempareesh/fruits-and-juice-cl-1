@@ -221,7 +221,7 @@ const PartnerCard = memo(({ partner }: { partner: any }) => {
         <View style={styles.partnerInfo}>
           <View style={styles.partnerAvatar}>
             <Truck size={24} color="#3A8C3F" />
-          </div>
+          </View>
           <View>
             <Text style={styles.partnerName}>{partner.name}</Text>
             <Text style={styles.partnerVehicle}>{partner.vehicle_type} • {partner.vehicle_number || 'No Plate'}</Text>
