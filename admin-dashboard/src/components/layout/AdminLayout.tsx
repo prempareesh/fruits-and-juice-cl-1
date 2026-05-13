@@ -87,7 +87,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
           if (typeof window !== 'undefined') {
             localStorage.clear();
           }
-          const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://192.168.1.7:8081";
+          const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://localhost:8081";
           window.location.href = `${CUSTOMER_APP_URL}/login?error=unauthorized`;
           return;
         }
