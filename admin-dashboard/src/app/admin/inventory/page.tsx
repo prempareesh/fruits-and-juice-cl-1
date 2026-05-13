@@ -74,7 +74,7 @@ const InventoryPage = () => {
       
       if (error) throw error;
 
-      const formatted: InventoryItem[] = (data || []).map(p => {
+      const formatted: InventoryItem[] = ((data as any[]) || []).map(p => {
         const stock = Number(p.stock_kg) || 0;
         let status: 'sufficient' | 'low' | 'critical' = 'sufficient';
         if (stock <= 2) status = 'critical';

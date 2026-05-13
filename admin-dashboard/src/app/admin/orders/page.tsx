@@ -71,7 +71,7 @@ const OrdersPage = () => {
 
       // Manually fetch profiles since FK is missing
       if (data && data.length > 0) {
-        const userIds = Array.from(new Set(data.map(o => o.user_id).filter(Boolean)));
+        const userIds = Array.from(new Set((data as any[]).map(o => o.user_id).filter(Boolean)));
         const { data: profileData } = await supabase
           .from('profiles')
           .select('id, full_name, phone')

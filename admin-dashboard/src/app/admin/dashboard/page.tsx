@@ -163,7 +163,7 @@ const DashboardPage = () => {
       const products = productsResult.data || [];
       const orderItems = orderItemsResult.data || [];
 
-      const storeSpecificCustomers = new Set(orders.map(o => o.user_id)).size;
+      const storeSpecificCustomers = new Set((orders as any[]).map(o => o.user_id)).size;
 
       let totalRevenue = 0;
       const distribution: Record<string, number> = {};
