@@ -67,7 +67,8 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://localhost:8081";
+          const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || 
+                                 (typeof window !== 'undefined' ? window.location.origin.replace('admin-dashboard', 'customer-app') : "http://localhost:8081");
           window.location.href = `${CUSTOMER_APP_URL}/login`;
           return;
         }
@@ -87,7 +88,8 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
           if (typeof window !== 'undefined') {
             localStorage.clear();
           }
-          const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://localhost:8081";
+          const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || 
+                                 (typeof window !== 'undefined' ? window.location.origin.replace('admin-dashboard', 'customer-app') : "http://localhost:8081");
           window.location.href = `${CUSTOMER_APP_URL}/login?error=unauthorized`;
           return;
         }

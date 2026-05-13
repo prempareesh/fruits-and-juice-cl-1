@@ -64,7 +64,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isOpenMobile, setIsOpenMobile }:
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://localhost:8081";
+    const CUSTOMER_APP_URL = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || 
+                           (typeof window !== 'undefined' ? window.location.origin.replace('admin-dashboard', 'customer-app') : "http://localhost:8081");
     window.location.href = `${CUSTOMER_APP_URL}/login`;
   };
 
