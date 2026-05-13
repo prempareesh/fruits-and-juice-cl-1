@@ -43,15 +43,6 @@ export default function DeliveryOrdersPage() {
   const { toast } = useToast();
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDeliveryData();
-  }, []);
-
-  useRealtime([
-    { table: 'orders', callback: fetchDeliveryData },
-    { table: 'delivery_partners', callback: fetchDeliveryData }
-  ]);
-
   const fetchDeliveryData = async () => {
     try {
       setLoading(true);
@@ -98,6 +89,15 @@ export default function DeliveryOrdersPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchDeliveryData();
+  }, []);
+
+  useRealtime([
+    { table: 'orders', callback: fetchDeliveryData },
+    { table: 'delivery_partners', callback: fetchDeliveryData }
+  ]);
 
   const assignPartner = async (orderId: string, partnerId: string) => {
     setAssigningId(orderId);
