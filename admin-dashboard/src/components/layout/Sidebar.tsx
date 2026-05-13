@@ -19,6 +19,7 @@ import {
   Layers,
   PieChart,
   Truck,
+  Navigation,
   X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -41,7 +42,8 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
   { name: 'Live Orders', icon: ShoppingCart, href: '/admin/orders', badge: 'NEW' },
-  { name: 'Delivery Management', icon: Truck, href: '/admin/delivery' },
+  { name: 'Command Center', icon: Truck, href: '/admin/delivery' },
+  { name: 'Logistics Hub', icon: Navigation, href: '/admin/delivery/settings' },
   { name: 'Products', icon: Package, href: '/admin/products' },
   { name: 'Inventory', icon: Layers, href: '/admin/inventory' },
   { name: 'Categories', icon: Layers, href: '/admin/categories' },

@@ -259,7 +259,37 @@ const ProductsPage = () => {
                   <td className="px-6 py-4">
                     <span className="px-3 py-1 bg-accent/50 text-primary rounded-full text-[10px] font-black uppercase">{product.category}</span>
                   </td>
-                  <td className="px-6 py-4 font-black text-slate-900 dark:text-white">₹{product.price_per_kg}</td>
+                  <td className="px-6 py-4 font-black text-slate-900 dark:text-white">
+                    <div className="group/price flex items-center gap-2">
+                      <span className="text-slate-400">₹</span>
+                      <input 
+                        type="number"
+                        defaultValue={product.price_per_kg}
+                        onBlur={async (e) => {
+                          const newPrice = parseFloat(e.target.value);
+                          if (newPrice === product.price_per_kg) return;
+                          
+                          try {
+                            const { error } = await supabase
+                              .from('products')
+                              .update({ price_per_kg: newPrice })
+                              .eq('id', product.id);
+                            
+                            if (error) throw error;
+                            toast({
+                              title: "Price Updated",
+                              description: `${product.name} is now ₹${newPrice}`,
+                              variant: "success",
+                            });
+                          } catch (err: any) {
+                            toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+                            e.target.value = product.price_per_kg.toString();
+                          }
+                        }}
+                        className="w-20 bg-transparent border-b border-transparent group-hover/price:border-primary/30 focus:border-primary focus:bg-primary/5 outline-none transition-all px-1 py-0.5 rounded"
+                      />
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       "font-black",

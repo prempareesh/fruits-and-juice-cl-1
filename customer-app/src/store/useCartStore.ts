@@ -115,22 +115,19 @@ export const useCartStore = create<CartStore>()(
           const distance = LocationService.calculateDistance(shopLat, shopLng, lat, lng);
           const maxRadius = settings.max_delivery_radius || STORE_CONFIG.DEFAULT_MAX_RADIUS_KM;
 
-          // 3. Radius Blocking
+          // 3. Radius Blocking & Fee Logic
           if (distance > maxRadius) {
-            throw new Error(`Sorry, we don't deliver to your location yet. (Distance: ${distance}km, Max: ${maxRadius}km)`);
+            throw new Error(`Sorry, delivery is unavailable for your location. (Distance: ${distance}km, Max Serviceable: ${maxRadius}km)`);
           }
 
-          // 4. Fetch Zones for Fees
-          const { data: zones } = await supabase
-            .from('delivery_zones')
-            .select('*')
-            .eq('is_active', true)
-            .order('min_distance');
-
+          // 4. Dynamic Zone Calculation
           let fee = 0;
-          if (zones && zones.length > 0) {
-            const matchedZone = zones.find(z => distance >= z.min_distance && distance <= z.max_distance);
-            fee = matchedZone ? matchedZone.delivery_fee : zones[zones.length - 1].delivery_fee;
+          const freeRadius = settings.free_delivery_radius || 3;
+          
+          if (distance <= freeRadius) {
+            fee = 0; // Zone 1: Free
+          } else if (distance <= maxRadius) {
+            fee = settings.delivery_fee || 30; // Zone 2: Paid
           }
 
           set({ deliveryFee: fee });
