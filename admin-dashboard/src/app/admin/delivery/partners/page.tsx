@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   XCircle,
   MoreVertical,
-  Plus
+  Plus,
+  Truck
 } from 'lucide-react';
 import AdminLayout from '@/components/layout/AdminLayout';
 import { supabase } from '@/lib/supabase';
