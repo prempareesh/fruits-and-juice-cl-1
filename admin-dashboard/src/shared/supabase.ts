@@ -15,13 +15,8 @@ const SharedStorageAdapter = {
       }
       return null;
     }
-    // Native (React Native / Expo)
-    try {
-      const SecureStore = require('expo-secure-store');
-      return await SecureStore.getItemAsync(key);
-    } catch (e) {
-      return null;
-    }
+    // Mobile logic removed for web-only dashboard build
+    return null;
   },
   setItem: async (key: string, value: string) => {
     if (isWeb) {
@@ -30,10 +25,6 @@ const SharedStorageAdapter = {
       }
       return;
     }
-    try {
-      const SecureStore = require('expo-secure-store');
-      await SecureStore.setItemAsync(key, value);
-    } catch (e) {}
   },
   removeItem: async (key: string) => {
     if (isWeb) {
@@ -42,10 +33,6 @@ const SharedStorageAdapter = {
       }
       return;
     }
-    try {
-      const SecureStore = require('expo-secure-store');
-      await SecureStore.deleteItemAsync(key);
-    } catch (e) {}
   },
 };
 
