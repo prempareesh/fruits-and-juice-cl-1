@@ -13,67 +13,58 @@ import {
   Switch,
   Linking
 } from 'react-native';
-import { User, MapPin, Settings, HelpCircle, ChevronRight, LogOut, Mail, Phone, Briefcase, Home, ShieldCheck } from 'lucide-react-native';
+import { User, MapPin, Settings, HelpCircle, ChevronRight, LogOut, Briefcase, Home, ShieldCheck, Phone, Mail } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { supabase } from '../../lib/supabase';
 import { useTheme } from '../../src/store/ThemeContext';
+import { useAuth } from '../../src/providers/AuthProvider';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { isDarkMode, toggleDarkMode, theme } = useTheme();
+  const { user, role, signOut, refreshProfile, profile: authProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({
-    name: 'Preetham G.',
-    email: 'preetham@example.com',
-    phone: '+91 98765 43210',
-    permanentAddress: '123, Green Valley, Hyderabad',
-    officeAddress: 'Tech Park, Madhapur, Hyderabad'
+    name: 'User',
+    email: '',
+    phone: '',
+    permanentAddress: '',
+    officeAddress: ''
   });
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [isAddressModalVisible, setAddressModalVisible] = useState(false);
+  const [isHelpModalVisible, setHelpModalVisible] = useState(false);
   const [tempProfile, setTempProfile] = useState({ ...profile });
   
+  const [isLogoutModalVisible, setLogoutModalVisible] = useState(false);
   const [settings, setSettings] = useState({
-    notifications: true,
-    orderUpdates: true
+    darkMode: false 
   });
 
   useEffect(() => {
-    fetchUserProfile();
-  }, []);
-
-  const fetchUserProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const userData = {
-        name: user.user_metadata?.full_name || 'User',
+        name: authProfile?.full_name || user.user_metadata?.full_name || 'User',
         email: user.email || '',
-        phone: user.user_metadata?.phone || '',
-        permanentAddress: user.user_metadata?.permanent_address || '',
+        phone: authProfile?.phone || user.user_metadata?.phone || '',
+        permanentAddress: authProfile?.address || user.user_metadata?.permanent_address || '',
         officeAddress: user.user_metadata?.office_address || ''
       };
       setProfile(userData);
       setTempProfile(userData);
-
-      // Check if user is admin
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-      
-      if (profileData?.role === 'admin' || user.email === 'preethamgoud2006@gmail.com' || profileData?.role === 'super_admin') {
-        setIsAdmin(true);
-      }
     }
-  };
+  }, [user, authProfile]);
 
   const handleUpdateProfile = async () => {
+    if (!user) return;
     setLoading(true);
+    console.log('[Profile_Update] Starting update for user:', user.id);
+    
     try {
-      const { error } = await supabase.auth.updateUser({
+      // 1. Update Auth Metadata
+      const { error: authError } = await supabase.auth.updateUser({
         data: {
           full_name: tempProfile.name,
           phone: tempProfile.phone,
@@ -81,52 +72,49 @@ export default function ProfileScreen() {
           office_address: tempProfile.officeAddress,
         }
       });
+      if (authError) throw authError;
 
-      if (error) throw error;
+      // 2. Update Profiles Table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: tempProfile.name,
+          phone: tempProfile.phone,
+          address: tempProfile.permanentAddress,
+        })
+        .eq('id', user.id);
+      
+      if (profileError) {
+        console.warn('[Profile_Update] Profile table sync failed:', profileError.message);
+      }
+
+      // 3. Refresh Global State
+      if (refreshProfile) await refreshProfile();
 
       setProfile({ ...tempProfile });
       setEditModalVisible(false);
       setAddressModalVisible(false);
-      Alert.alert('Success', 'Profile updated successfully');
+      
+      Alert.alert(
+        'Success', 
+        'Address and profile updated successfully',
+        [{ text: 'OK' }]
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      console.error('[Profile_Update_Error]', error);
+      Alert.alert('Update Failed', error.message || 'Failed to save changes.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    const performLogout = async () => {
-      try {
-        setLoading(true);
-        const { error } = await supabase.auth.signOut();
-        if (error) console.warn("Supabase signout issue:", error.message);
-      } catch (error: any) {
-        console.error('Logout error:', error.message);
-      } finally {
-        setLoading(false);
-        // Clear any local storage that might be stuck
-        if (typeof localStorage !== 'undefined') {
-          localStorage.clear();
-        }
-        router.replace('/login');
-      }
-    };
+    setLogoutModalVisible(true);
+  };
 
-    if (Platform.OS === 'web') {
-      if (confirm('Are you sure you want to log out?')) {
-        await performLogout();
-      }
-    } else {
-      Alert.alert(
-        'Log Out',
-        'Are you sure you want to log out?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Log Out', style: 'destructive', onPress: performLogout },
-        ]
-      );
-    }
+  const confirmLogout = async () => {
+    setLogoutModalVisible(false);
+    await signOut();
   };
 
   const renderSettingRow = (label: string, value: boolean, onValueChange: (v: boolean) => void) => (
@@ -144,20 +132,15 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
       <View style={[styles.header, { backgroundColor: theme.card }]}>
-        <View style={styles.avatarContainer}>
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200' }} 
-            style={[styles.avatar, { borderColor: theme.primaryLight }]}
-          />
-          <TouchableOpacity 
-            style={styles.editBtn}
-            onPress={() => setEditModalVisible(true)}
-          >
-            <Settings size={16} color="#FFFFFF" />
-          </TouchableOpacity>
+        <View style={styles.profileInfo}>
+          <Text style={[styles.name, { color: theme.text }]}>{profile.name}</Text>
+          <Text style={[styles.email, { color: theme.textSecondary }]}>{profile.email}</Text>
+          <View style={[styles.badge, { backgroundColor: role === 'admin' ? '#FF770020' : '#10b98120' }]}>
+            <Text style={[styles.badgeText, { color: role === 'admin' ? '#FF7700' : '#10b981' }]}>
+              {role === 'admin' ? 'Administrator' : 'Customer'}
+            </Text>
+          </View>
         </View>
-        <Text style={[styles.name, { color: theme.text }]}>{profile.name}</Text>
-        <Text style={[styles.phone, { color: theme.textSecondary }]}>{profile.phone}</Text>
       </View>
 
       <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -188,30 +171,12 @@ export default function ProfileScreen() {
       </View>
 
       <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Text style={styles.sectionTitle}>Addresses</Text>
-        <View style={styles.addressRow}>
-          <Home size={20} color={theme.textSecondary} />
-          <View style={styles.addressInfo}>
-            <Text style={styles.addressLabel}>Permanent Address</Text>
-            <Text style={[styles.addressText, { color: theme.text }]}>{profile.permanentAddress || 'Not set'}</Text>
-          </View>
-        </View>
-        <View style={styles.addressRow}>
-          <Briefcase size={20} color={theme.textSecondary} />
-          <View style={styles.addressInfo}>
-            <Text style={styles.addressLabel}>Office Address</Text>
-            <Text style={[styles.addressText, { color: theme.text }]}>{profile.officeAddress || 'Not set'}</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={styles.sectionTitle}>App Settings</Text>
-        {isAdmin && (
+        {role === 'admin' && (
           <>
             <TouchableOpacity 
               style={styles.menuItem} 
-              onPress={() => router.push('/admin')}
+              onPress={() => router.replace('/admin')}
             >
               <View style={[styles.iconContainer, { backgroundColor: '#FF770015' }]}>
                 <ShieldCheck size={22} color="#FF7700" />
@@ -225,8 +190,6 @@ export default function ProfileScreen() {
             <View style={[styles.divider, { backgroundColor: theme.divider }]} />
           </>
         )}
-        {renderSettingRow('Push Notifications', settings.notifications, (v) => setSettings({...settings, notifications: v}))}
-        {renderSettingRow('Order Updates', settings.orderUpdates, (v) => setSettings({...settings, orderUpdates: v}))}
         {renderSettingRow('Dark Mode', isDarkMode, toggleDarkMode)}
       </View>
 
@@ -234,14 +197,14 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>Support</Text>
         <TouchableOpacity 
           style={styles.menuItem} 
-          onPress={() => Alert.alert('Help & Support', 'Admin: Preetam Gaur\nEmail: PreetamGaur2006@gmail.com\n\nHow can we help you today?')}
+          onPress={() => setHelpModalVisible(true)}
         >
           <View style={[styles.iconContainer, { backgroundColor: '#f59e0b15' }]}>
             <HelpCircle size={22} color="#f59e0b" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.menuLabel, { color: theme.text }]}>Help & Support</Text>
-            <Text style={styles.menuSubtitle}>Contact Preetam Gaur</Text>
+            <Text style={styles.menuSubtitle}>Contact Support Team</Text>
           </View>
           <ChevronRight size={20} color={theme.textSecondary} />
         </TouchableOpacity>
@@ -252,7 +215,7 @@ export default function ProfileScreen() {
         <Text style={styles.logoutText}>Log Out</Text>
       </TouchableOpacity>
 
-      <Text style={[styles.version, { color: theme.textSecondary }]}>Version 1.2.0 (Production)</Text>
+      <Text style={[styles.version, { color: theme.textSecondary }]}>Version 2.0.0 (Stable Auth)</Text>
 
       {/* Edit Profile Modal */}
       <Modal
@@ -365,6 +328,99 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+      {/* Help & Support Modal */}
+      <Modal
+        visible={isHelpModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setHelpModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text, marginBottom: 0 }]}>Help & Support</Text>
+              <TouchableOpacity onPress={() => setHelpModalVisible(false)}>
+                <Text style={{ color: theme.primary, fontWeight: 'bold' }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.supportContainer}>
+              <View style={[styles.supportCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                <View style={[styles.iconCircle, { backgroundColor: '#3b82f615' }]}>
+                  <Mail size={24} color="#3b82f6" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.supportLabel, { color: theme.textSecondary }]}>Email Us</Text>
+                  <Text style={[styles.supportValue, { color: theme.text }]}>support@freshflow.com</Text>
+                </View>
+                <TouchableOpacity 
+                  style={[styles.supportActionBtn, { backgroundColor: '#3b82f6' }]}
+                  onPress={() => Linking.openURL('mailto:support@freshflow.com').catch(() => Alert.alert('Error', 'Could not open email app'))}
+                >
+                  <Text style={styles.supportActionText}>Send Email</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.supportCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                <View style={[styles.iconCircle, { backgroundColor: '#10b98115' }]}>
+                  <Phone size={24} color="#10b981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.supportLabel, { color: theme.textSecondary }]}>Call Us</Text>
+                  <Text style={[styles.supportValue, { color: theme.text }]}>+91 98765 43210</Text>
+                </View>
+                <TouchableOpacity 
+                  style={[styles.supportActionBtn, { backgroundColor: '#10b981' }]}
+                  onPress={() => Linking.openURL('tel:+919876543210').catch(() => Alert.alert('Error', 'Could not open dialer'))}
+                >
+                  <Text style={styles.supportActionText}>Call Admin</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.supportNotice}>
+                <HelpCircle size={16} color={theme.textSecondary} />
+                <Text style={[styles.supportNoticeText, { color: theme.textSecondary }]}>
+                  Our support team is available from 9 AM to 9 PM daily.
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Logout Confirmation Modal */}
+      <Modal
+        visible={isLogoutModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setLogoutModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View entering={FadeInUp} style={[styles.logoutModalContent, { backgroundColor: theme.card }]}>
+            <View style={styles.logoutIconBg}>
+              <LogOut size={32} color="#ef4444" />
+            </View>
+            <Text style={[styles.logoutModalTitle, { color: theme.text }]}>Log Out?</Text>
+            <Text style={[styles.logoutModalSubtitle, { color: theme.textSecondary }]}>
+              Are you sure you want to log out of your account? You'll need to log in again to place orders.
+            </Text>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, { backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border }]} 
+                onPress={() => setLogoutModalVisible(false)}
+              >
+                <Text style={[styles.cancelBtnText, { color: theme.textSecondary }]}>Stay Logged In</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalBtn, { backgroundColor: '#ef4444' }]} 
+                onPress={confirmLogout}
+              >
+                <Text style={[styles.saveBtnText, { color: '#FFF' }]}>Yes, Log Out</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -372,27 +428,33 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 60,
-    paddingBottom: 32,
+    paddingTop: 80,
+    paddingBottom: 40,
     alignItems: 'center',
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  avatarContainer: { position: 'relative', marginBottom: 16 },
-  avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 4 },
-  editBtn: {
-    position: 'absolute', bottom: 0, right: 0,
-    backgroundColor: '#FF7700', width: 32, height: 32,
-    borderRadius: 16, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 3, borderColor: '#FFFFFF',
+  profileInfo: {
+    alignItems: 'center',
   },
-  name: { fontSize: 22, fontWeight: 'bold' },
-  phone: { fontSize: 14, marginTop: 4 },
+  name: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
+  email: { fontSize: 16, marginTop: 4, opacity: 0.7 },
+  badge: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
   section: {
     marginTop: 20, marginHorizontal: 20,
     borderRadius: 24, padding: 16, borderWidth: 1,
@@ -403,10 +465,6 @@ const styles = StyleSheet.create({
   menuLabel: { fontSize: 16, fontWeight: '600' },
   menuSubtitle: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
   divider: { height: 1, marginVertical: 8 },
-  addressRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
-  addressInfo: { flex: 1, marginLeft: 12 },
-  addressLabel: { fontSize: 13, fontWeight: 'bold', color: '#64748b' },
-  addressText: { fontSize: 14, marginTop: 2 },
   settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   settingLabel: { fontSize: 15, fontWeight: '500' },
   logoutBtn: {
@@ -416,7 +474,6 @@ const styles = StyleSheet.create({
   },
   logoutText: { fontSize: 16, fontWeight: 'bold', color: '#ef4444', marginLeft: 12 },
   version: { textAlign: 'center', fontSize: 12, marginTop: 24, marginBottom: 40 },
-  
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24, maxHeight: '80%' },
   modalTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 24 },
@@ -429,4 +486,91 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: '#FF7700' },
   cancelBtnText: { fontWeight: 'bold' },
   saveBtnText: { color: '#FFFFFF', fontWeight: 'bold' },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  supportContainer: {
+    gap: 16,
+  },
+  supportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 16,
+  },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  supportLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  supportValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  supportActionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  supportActionText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  supportNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 20,
+  },
+  supportNoticeText: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  logoutModalContent: { 
+    width: '85%', 
+    backgroundColor: '#fff', 
+    borderRadius: 32, 
+    padding: 32, 
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 'auto',
+    marginTop: 'auto'
+  },
+  logoutIconBg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#fff1f2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  logoutModalTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: 12
+  },
+  logoutModalSubtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 10
+  }
 });

@@ -50,12 +50,12 @@ export default function Slideshow() {
       Animated.timing(fadeAnim, {
         toValue: 0.5,
         duration: 300,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(slideAnim, {
         toValue: -20,
         duration: 300,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       })
     ]).start(() => {
       setCurrent(nextIndex);
@@ -66,12 +66,12 @@ export default function Slideshow() {
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 500,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(slideAnim, {
           toValue: 0,
           duration: 500,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         })
       ]).start();
     });

@@ -1,57 +1,57 @@
 import { Platform, TextStyle } from 'react-native';
 
 export const TYPOGRAPHY = {
-  // Premium Calibri Bold for Headers
+  // Premium Plus Jakarta Sans for Headers
   h1: {
-    fontFamily: 'Calibri',
+    fontFamily: '"Plus Jakarta Sans", sans-serif',
     fontWeight: '700',
     fontSize: 42,
     lineHeight: 48,
     color: '#1A1A1A',
   } as TextStyle,
   h2: {
-    fontFamily: 'Calibri',
+    fontFamily: '"Plus Jakarta Sans", sans-serif',
     fontWeight: '700',
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 28, // Scaled down slightly for modern UI
+    lineHeight: 34,
     color: '#1A1A1A',
   } as TextStyle,
   h3: {
-    fontFamily: 'Calibri',
+    fontFamily: '"Plus Jakarta Sans", sans-serif',
     fontWeight: '700',
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 20,
+    lineHeight: 28,
     color: '#1A1A1A',
   } as TextStyle,
   
-  // Calibri for Body & Labels
+  // Inter for Body & Labels
   body: {
-    fontFamily: 'Calibri',
-    fontSize: 16,
-    lineHeight: 24,
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 15,
+    lineHeight: 22,
     color: '#333333',
   } as TextStyle,
   label: {
-    fontFamily: 'Calibri',
+    fontFamily: '"Inter", sans-serif',
     fontWeight: '700',
-    fontSize: 12,
-    letterSpacing: 1.5,
+    fontSize: 11,
+    letterSpacing: 1.2,
     textTransform: 'uppercase' as const,
-    color: '#E67E22',
+    color: '#1DA34D',
   } as const as TextStyle,
   price: {
-    fontFamily: 'Calibri',
+    fontFamily: '"Inter", sans-serif',
     fontWeight: '700',
     fontSize: 18,
     color: '#1A1A1A',
   } as TextStyle,
   subtext: {
-    fontFamily: 'Calibri',
-    fontSize: 14,
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 13,
     color: '#6B7280',
   } as TextStyle,
   caption: {
-    fontFamily: 'Calibri',
+    fontFamily: '"Inter", sans-serif',
     fontSize: 12,
     color: '#6B7280',
   } as TextStyle,

@@ -33,9 +33,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       imageUrl={image}
       onPress={onPress}
       onAddToCart={onAddToCart}
-      isAvailable={isAvailable}
+      stock={isAvailable ? 1 : 0}
       category={category}
-      variant="elevated"
     />
   );
 };

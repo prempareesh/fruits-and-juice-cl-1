@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, View, Text, Platform, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { ArrowRight } from 'lucide-react-native';
-import { COLORS } from '../../theme/colors';
+import { COLORS } from '../../theme/tokens';
 import { TYPOGRAPHY } from '../../theme/typography';
 
 interface FinancialHeroProps {
@@ -27,8 +27,8 @@ export const FinancialHero = ({
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: false }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 700, useNativeDriver: false }),
     ]).start();
   }, []);
 

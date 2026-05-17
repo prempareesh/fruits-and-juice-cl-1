@@ -1,0 +1,214 @@
+import * as React from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { 
+  View, 
+  StyleSheet, 
+  StatusBar,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  Dimensions,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Search } from 'lucide-react-native';
+import { PremiumHeader } from '@/src/components/home/PremiumHeader';
+import { BannerCarousel } from '@/src/components/home/BannerCarousel';
+import { ProductSection } from '@/src/components/home/ProductSection';
+import { HotDealsSection } from '@/src/components/home/HotDealsSection';
+import { CategoryBar } from '@/src/components/home/CategoryBar';
+import { TrendingSection } from '@/src/components/home/TrendingSection';
+import { SkeletonHome } from '@/src/components/home/SkeletonHome';
+import { useProducts } from '@/src/hooks/useProducts';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '@/src/theme/tokens';
+import { OfflineBanner } from '@/src/components/OfflineBanner';
+import { WarehouseClosedBanner } from '@/src/components/ui/WarehouseClosedBanner';
+import Animated, { FadeIn, FadeInDown, Layout } from 'react-native-reanimated';
+import { TouchableOpacity, Text } from 'react-native';
+
+import { useCartStore } from '@/src/store/useCartStore';
+import { LocationService } from '@/src/services/LocationService';
+
+export default function HomeScreen() {
+  const router = useRouter();
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const { products, loading, refreshing, refresh } = useProducts();
+  const { selectedAddress, setSelectedAddress } = useCartStore();
+
+  // ── Automatic Location Initialization ─────────────────────────────
+  useEffect(() => {
+    const initLocation = async () => {
+      if (!selectedAddress) {
+        try {
+          const hasPermission = await LocationService.requestPermissions();
+          if (hasPermission) {
+            const coords = await LocationService.getCurrentCoords();
+            if (coords) {
+              const addr = await LocationService.reverseGeocode(coords.latitude, coords.longitude);
+              if (addr) {
+                await setSelectedAddress(addr);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[LocationInit] Failed to auto-detect location:', err);
+        }
+      }
+    };
+    initLocation();
+  }, [selectedAddress, setSelectedAddress]);
+
+  // ── Optimized Filtering ───────────────────────────────────────────
+  
+  const fruits = useMemo(() => 
+    products.filter(p => p.category?.toLowerCase() === 'fruits' || p.category?.toLowerCase() === 'fruit'), 
+  [products]);
+
+  const juices = useMemo(() => 
+    products.filter(p => p.category?.toLowerCase() === 'juices' || p.category?.toLowerCase() === 'juice'), 
+  [products]);
+
+  const vegetables = useMemo(() => 
+    products.filter(p => p.category?.toLowerCase() === 'vegetables' || p.category?.toLowerCase() === 'vegetable'), 
+  [products]);
+
+  const others = useMemo(() => 
+    products.filter(p => p.category?.toLowerCase() === 'others' || p.category?.toLowerCase() === 'other'), 
+  [products]);
+
+  const hotDeals = useMemo(() => {
+    // ONLY Fruits + Vegetables for Hot Deals
+    return products.filter(p => 
+      (p.category?.toLowerCase().includes('fruit') || p.category?.toLowerCase().includes('vegetable')) &&
+      (p.mrp ?? 0) > ((p.selling_price || p.price) ?? 0)
+    ).slice(0, 10);
+  }, [products]);
+
+  // ──────────────────────────────────────────────────────────────────
+
+  if (loading && products.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <SkeletonHome />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <OfflineBanner />
+      
+      {/* 1. Header & Search Trigger */}
+      <PremiumHeader />
+      
+      <TouchableOpacity 
+        style={styles.searchTrigger} 
+        onPress={() => router.push('/search')}
+        activeOpacity={0.9}
+      >
+        <Search size={20} color={COLORS.primaryGreen} strokeWidth={2.5} />
+        <Text style={styles.searchTriggerText}>Search "fresh fruits", "mangoes"...</Text>
+      </TouchableOpacity>
+
+      <WarehouseClosedBanner />
+
+      <ScrollView 
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[COLORS.primaryGreen]} />
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* 2. Banner */}
+        <BannerCarousel />
+
+        {/* 3. Category Filter Bar */}
+        <CategoryBar selected={selectedCategory} onSelect={setSelectedCategory} />
+
+        {/* 3.5 Trending Now (Infinite Auto-scroll) */}
+        {selectedCategory === 'all' && (
+          <TrendingSection onSeeAll={() => router.push('/category/trending')} />
+        )}
+
+        {/* 4. Modular Sections with Synchronization */}
+        <Animated.View layout={Layout.springify()}>
+          
+          {/* STEP 1: HOT DEALS (Only visible when 'all' or specifically requested) */}
+          {(selectedCategory === 'all' || selectedCategory === 'fruits' || selectedCategory === 'vegetables') && (
+            <HotDealsSection products={hotDeals} />
+          )}
+
+          {/* STEP 2: FRUITS */}
+          {(selectedCategory === 'all' || selectedCategory === 'fruits' || selectedCategory === 'fruit') && (
+            <ProductSection 
+              title="FRUITS" 
+              products={fruits} 
+              onSeeAll={() => router.push('/category/fruit')}
+            />
+          )}
+
+          {/* STEP 3: JUICES */}
+          {(selectedCategory === 'all' || selectedCategory === 'juices' || selectedCategory === 'juice') && (
+            <ProductSection 
+              title="JUICES" 
+              products={juices} 
+              onSeeAll={() => router.push('/category/juice')}
+            />
+          )}
+
+          {/* STEP 4: VEGETABLES */}
+          {(selectedCategory === 'all' || selectedCategory === 'vegetables' || selectedCategory === 'vegetable') && (
+            <ProductSection 
+              title="VEGETABLES" 
+              products={vegetables} 
+              onSeeAll={() => router.push('/category/vegetable')}
+            />
+          )}
+
+          {/* STEP 5: OTHERS */}
+          {(selectedCategory === 'all' || selectedCategory === 'others' || selectedCategory === 'other') && (
+            <ProductSection 
+              title="OTHERS" 
+              products={others} 
+              onSeeAll={() => router.push('/category/others')}
+              emptyState={{
+                title: "Coming Soon",
+                subtitle: "We are adding fresh essentials to this category. Stay tuned!"
+              }}
+            />
+          )}
+
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    backgroundColor: '#FFFFFF',
+  },
+  searchTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    marginHorizontal: SPACING.lg,
+    marginVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    height: 54,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 12,
+    ...SHADOWS.sm,
+  },
+  searchTriggerText: {
+    fontSize: 15,
+    color: COLORS.muted,
+    fontWeight: '600',
+  },
+  scrollContent: {
+    paddingBottom: 120,
+  },
+});

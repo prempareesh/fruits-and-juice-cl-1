@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Animated, useWindowDimensions, Platform } from 'react-native';
 import { COLORS, TYPOGRAPHY, RADIUS, SPACING } from '../theme/tokens';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -17,12 +17,12 @@ export const HeroBanner = () => {
         Animated.timing(floatAnim, {
           toValue: -12,
           duration: 2500,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
           duration: 2500,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ])
     ).start();

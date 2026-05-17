@@ -1,0 +1,339 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  Switch, 
+  TouchableOpacity, 
+  TextInput, 
+  Alert,
+  ActivityIndicator,
+  Platform,
+  Dimensions
+} from 'react-native';
+import { 
+  Settings as SettingsIcon, 
+  Store, 
+  Truck, 
+  MapPin, 
+  Phone, 
+  Clock, 
+  Shield, 
+  LogOut, 
+  Save, 
+  ExternalLink,
+  ChevronRight,
+  Info,
+  Navigation
+} from 'lucide-react-native';
+import { supabase } from '../../lib/supabase';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+
+const { width } = Dimensions.get('window');
+
+export default function AdminSettings() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
+  const [settings, setSettings] = useState({
+    store_open: true,
+    delivery_radius: '10',
+    min_order_amount: '100',
+    base_delivery_fee: '20',
+    store_address: '',
+    store_lat: '19.0760',
+    store_lng: '72.8777',
+    support_phone: '+91 98765 43210',
+    estimated_delivery_time: '30-45 mins'
+  });
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('id', 'store_settings')
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      if (data) {
+        setSettings({
+          store_open: data.store_open ?? true,
+          delivery_radius: String(data.delivery_radius ?? '10'),
+          min_order_amount: String(data.min_order_amount ?? '100'),
+          base_delivery_fee: String(data.base_delivery_fee ?? '20'),
+          store_address: data.store_address ?? '',
+          store_lat: String(data.store_lat ?? '19.0760'),
+          store_lng: String(data.store_lng ?? '72.8777'),
+          support_phone: data.support_phone ?? '+91 98765 43210',
+          estimated_delivery_time: data.estimated_delivery_time ?? '30-45 mins'
+        });
+      }
+    } catch (error: any) {
+      console.error('Fetch Settings Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (Platform.OS !== 'web') await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { error } = await supabase
+        .from('settings')
+        .upsert({
+          id: 'store_settings',
+          store_open: settings.store_open,
+          delivery_radius: parseFloat(settings.delivery_radius),
+          min_order_amount: parseFloat(settings.min_order_amount),
+          base_delivery_fee: parseFloat(settings.base_delivery_fee),
+          store_address: settings.store_address,
+          store_lat: parseFloat(settings.store_lat),
+          store_lng: parseFloat(settings.store_lng),
+          support_phone: settings.support_phone,
+          estimated_delivery_time: settings.estimated_delivery_time,
+          updated_at: new Date().toISOString(),
+          updated_by: user?.id
+        });
+
+      if (error) throw error;
+      Alert.alert("Success", "Configuration updated for all customers.");
+    } catch (error: any) {
+      Alert.alert("Error", error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to exit the admin panel?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Logout", 
+        style: "destructive",
+        onPress: async () => {
+          await supabase.auth.signOut();
+          router.replace('/login');
+        }
+      }
+    ]);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#10b981" />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 24 }}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Store Settings</Text>
+          <Text style={styles.subtitle}>Manage logistics, hub location, and support</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.viewStoreBtn}
+          onPress={() => router.push('/(tabs)')}
+        >
+          <ExternalLink size={18} color="#10b981" />
+          <Text style={styles.viewStoreText}>Preview App</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Quick Status Card */}
+      <Animated.View entering={FadeInDown.delay(100)} style={styles.statusCard}>
+        <View style={styles.statusInfo}>
+          <View style={[styles.statusIndicator, { backgroundColor: settings.store_open ? '#10b981' : '#ef4444' }]} />
+          <View>
+            <Text style={styles.statusTitle}>{settings.store_open ? 'Store is Live' : 'Store is Closed'}</Text>
+            <Text style={styles.statusDesc}>{settings.store_open ? 'Accepting orders normally' : 'Customers cannot checkout'}</Text>
+          </View>
+        </View>
+        <Switch 
+          value={settings.store_open} 
+          onValueChange={(val) => setSettings(s => ({ ...s, store_open: val }))}
+          trackColor={{ false: '#cbd5e1', true: '#10b981' }}
+        />
+      </Animated.View>
+
+      <View style={styles.sectionsGrid}>
+        {/* Logistics Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Delivery & Logistics</Text>
+          <View style={styles.card}>
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Max Service Radius (KM)</Text>
+                <View style={styles.inputWrapper}>
+                  <Truck size={16} color="#94a3b8" />
+                  <TextInput 
+                    style={styles.input} 
+                    value={settings.delivery_radius} 
+                    onChangeText={(val) => setSettings(s => ({ ...s, delivery_radius: val }))}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Standard Delivery Fee (₹)</Text>
+                <View style={styles.inputWrapper}>
+                  <Navigation size={16} color="#94a3b8" />
+                  <TextInput 
+                    style={styles.input} 
+                    value={settings.base_delivery_fee} 
+                    onChangeText={(val) => setSettings(s => ({ ...s, base_delivery_fee: val }))}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Minimum Order (₹)</Text>
+                <TextInput 
+                  style={[styles.input, styles.standaloneInput]} 
+                  value={settings.min_order_amount} 
+                  onChangeText={(val) => setSettings(s => ({ ...s, min_order_amount: val }))}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Est. Delivery Time</Text>
+                <View style={styles.inputWrapper}>
+                  <Clock size={16} color="#94a3b8" />
+                  <TextInput 
+                    style={styles.input} 
+                    value={settings.estimated_delivery_time} 
+                    onChangeText={(val) => setSettings(s => ({ ...s, estimated_delivery_time: val }))}
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Hub Location Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Hub Location & GIS</Text>
+          <View style={styles.card}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Warehouse Address</Text>
+              <View style={[styles.inputWrapper, { height: 'auto', minHeight: 80, alignItems: 'flex-start', paddingVertical: 12 }]}>
+                <MapPin size={18} color="#94a3b8" style={{ marginTop: 2 }} />
+                <TextInput 
+                  style={[styles.input, { height: 'auto' }]} 
+                  multiline
+                  value={settings.store_address}
+                  onChangeText={(val) => setSettings(s => ({ ...s, store_address: val }))}
+                  placeholder="Enter full address for GPS positioning"
+                />
+              </View>
+            </View>
+
+            <View style={[styles.inputRow, { marginTop: 16 }]}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Latitude</Text>
+                <TextInput 
+                  style={[styles.input, styles.standaloneInput]} 
+                  value={settings.store_lat}
+                  onChangeText={(val) => setSettings(s => ({ ...s, store_lat: val }))}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Longitude</Text>
+                <TextInput 
+                  style={[styles.input, styles.standaloneInput]} 
+                  value={settings.store_lng}
+                  onChangeText={(val) => setSettings(s => ({ ...s, store_lng: val }))}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Support Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Customer Support</Text>
+          <View style={styles.card}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Helpline Number (Visible to users)</Text>
+              <View style={styles.inputWrapper}>
+                <Phone size={16} color="#94a3b8" />
+                <TextInput 
+                  style={styles.input} 
+                  value={settings.support_phone} 
+                  onChangeText={(val) => setSettings(s => ({ ...s, support_phone: val }))}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
+          {saving ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Save size={20} color="#fff" />
+              <Text style={styles.saveBtnText}>Update Production Config</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <LogOut size={20} color="#ef4444" />
+          <Text style={styles.logoutBtnText}>Exit Dashboard</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { marginBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  title: { fontSize: 28, fontWeight: '900', color: '#1e293b' },
+  subtitle: { fontSize: 14, color: '#64748b', marginTop: 4, fontWeight: '500' },
+  viewStoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  viewStoreText: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
+  statusCard: { backgroundColor: '#fff', padding: 20, borderRadius: 24, borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
+  statusInfo: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  statusIndicator: { width: 12, height: 12, borderRadius: 6 },
+  statusTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
+  statusDesc: { fontSize: 13, color: '#64748b', fontWeight: '500', marginTop: 2 },
+  sectionsGrid: { gap: 32 },
+  section: { },
+  sectionTitle: { fontSize: 12, fontWeight: '800', color: '#94a3b8', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1.5 },
+  card: { backgroundColor: '#fff', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#e2e8f0' },
+  inputRow: { flexDirection: 'row', gap: 20, marginBottom: 20 },
+  inputGroup: { flex: 1 },
+  label: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 10 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 16, height: 56, gap: 12 },
+  input: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1e293b' },
+  standaloneInput: { height: 56, backgroundColor: '#f8fafc', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 16 },
+  footer: { marginTop: 40, gap: 16, paddingBottom: 60 },
+  saveBtn: { flexDirection: 'row', height: 64, backgroundColor: '#10b981', borderRadius: 20, justifyContent: 'center', alignItems: 'center', gap: 12, shadowColor: '#10b981', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 8 },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: 0.5 },
+  logoutBtn: { flexDirection: 'row', height: 60, backgroundColor: '#fef2f2', borderRadius: 20, justifyContent: 'center', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#fee2e2' },
+  logoutBtnText: { color: '#ef4444', fontSize: 15, fontWeight: '800' }
+});

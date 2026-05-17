@@ -5,12 +5,12 @@
  */
 export const STORE_CONFIG = {
   name: 'Juicy App Main Hub',
-  // Sample Coordinates (Central Point)
-  // Replace these with your actual shop coordinates
-  latitude: 19.0760, // Example: Mumbai
-  longitude: 72.8777,
+  // Removed hardcoded Mumbai coordinates to prevent incorrect distance calculations.
+  // The app now fetches real-time coordinates from Supabase settings.
+  latitude: null, 
+  longitude: null,
   
-  // Logistics Defaults
-  DEFAULT_MAX_RADIUS_KM: 15,
+  // Logistics Defaults (will be overridden by DB settings)
+  DEFAULT_MAX_RADIUS_KM: 10,
   BASE_ESTIMATED_DELIVERY_MINS: 30,
 };

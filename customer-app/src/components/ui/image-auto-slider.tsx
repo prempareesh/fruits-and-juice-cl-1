@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Platform, View, Text, StyleSheet, useWindowDimensions, Image } from 'react-native';
 import { ProductService } from '../../services/ProductService';
-import { COLORS } from '../../theme/colors';
+import { COLORS } from '../../theme/tokens';
 import { TYPOGRAPHY } from '../../theme/typography';
 import { BREAKPOINTS } from '../../theme/responsive';
 

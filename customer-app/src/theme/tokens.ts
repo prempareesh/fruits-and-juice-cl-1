@@ -10,16 +10,27 @@ import { TYPOGRAPHY as NEW_TYPOGRAPHY } from './typography';
 export const COLORS = {
   ...NEW_COLORS,
   white: '#FFFFFF',
-  primaryGreen: '#2E7D32',
-  creamBackground: '#FDFCF0',
+  primaryGreen: '#1DA34D',
+  background: '#F7F9FB',
+  // Backward compatibility aliases
+  mutedGray: NEW_COLORS.muted,
+  lightGray: NEW_COLORS.border,
+  darkText: NEW_COLORS.dark,
+  luxuryDark: '#1A1C1E',
+  cream: '#FFF1D6',
+  primaryOrange: '#FFAB00',
+  luxuryGold: '#D4AF37',
+  gold: '#FFD700',
+  softBeige: '#F5F5DC',
+  creamBackground: '#FFF9F0',
 };
 
 export const TYPOGRAPHY = {
   ...NEW_TYPOGRAPHY,
   subtext: {
-    fontFamily: 'Calibri',
+    fontFamily: 'Inter',
     fontSize: 14,
-    color: '#6B7280',
+    color: '#637381',
   }
 };
 

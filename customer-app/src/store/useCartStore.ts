@@ -7,6 +7,10 @@ import { Product, JuiceVariant } from '../types';
 import { ProductService } from '../services/ProductService';
 import { supabase } from '../../lib/supabase';
 import { Alert, Platform } from 'react-native';
+import { StructuredAddress, LocationService } from '../services/LocationService';
+import { STORE_CONFIG } from '../constants/storeConfig';
+
+export type AddressData = StructuredAddress;
 
 export interface CartItem {
   id: string;
@@ -19,177 +23,456 @@ export interface CartItem {
   price: number;
   subtotal: number;
   image?: string;
+  stock: number;
+  size?: string;
 }
 
 interface CartStore {
   items: CartItem[];
+  distance: number;
+  selectedAddress: AddressData | null;
+  isServiceable: boolean;
+  isCheckingRadius: boolean;
   addItem: (product: Product, variant?: JuiceVariant, quantity?: number) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
+  validateCartStock: () => Promise<boolean>;
   clearCart: () => void;
   deliveryFee: number;
-  updateDeliveryFee: (lat: number, lng: number) => Promise<number>;
+  minOrderAmount: number;
+  setSelectedAddress: (address: AddressData) => Promise<void>;
+  updateDeliveryFee: (lat: number, lng: number) => Promise<number | void>;
   getTotal: () => number;
   getGrandTotal: () => number;
-  placeOrder: (userId: string, address: string, paymentType: 'online' | 'cod', initialStatus?: string, locationData?: Partial<StructuredAddress>) => Promise<string | null>;
+  placeOrder: (
+    userId: string, 
+    address: string, 
+    paymentType: 'online' | 'cod', 
+    initialStatus?: string, 
+    locationData?: Partial<StructuredAddress>,
+    customerName?: string,
+    customerPhone?: string
+  ) => Promise<string | null>;
 }
-
-import { StructuredAddress, LocationService } from '../services/LocationService';
-import { STORE_CONFIG } from '../constants/storeConfig';
 
 export const useCartStore = create<CartStore>()(
   persist(
-    (set, get) => ({
-      items: [],
-      deliveryFee: 0,
-      addItem: (product, variant, quantity = 1) => {
-        monitor.log('INFO', 'Cart', `Adding item: ${product.name}`, { productId: product.id });
-        const isJuice = product.category === 'juice';
-        const variantId = variant?.id;
-        const price = ProductService.getPrice(product, variant);
-        const cartItemId = isJuice ? `${product.id}-${variantId}` : product.id;
+    (set, get) => {
+      // ── Real-time Product Deletion Sync ───────────────────────────
+      // Automatically removes items from cart if they are deleted from DB
+      supabase
+        .channel('cart_deletion_sync')
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'products' }, (payload) => {
+          const deletedId = payload.old.id;
+          if (deletedId) {
+            set((state) => ({
+              items: state.items.filter(item => item.productId !== deletedId)
+            }));
+            console.log(`[CART_SYNC] Product ${deletedId} was deleted from DB. Removed from cart.`);
+          }
+        })
+        .subscribe();
 
+      // ── Real-time Settings Sync ───────────────────────────
+      // Instantly updates delivery fee, min order, and radius logic when admin changes settings
+      supabase
+        .channel('settings_realtime_sync')
+        .on(
+          'postgres_changes', 
+          { event: 'UPDATE', schema: 'public', table: 'settings', filter: 'id=eq.store_settings' }, 
+          (payload) => {
+            const newSettings = payload.new;
+            console.log('[SETTINGS_SYNC] Admin settings updated. Refreshing logistics...');
+            
+            const selectedAddress = get().selectedAddress;
+            if (selectedAddress) {
+              get().updateDeliveryFee(selectedAddress.latitude, selectedAddress.longitude);
+            } else {
+              set({ 
+                deliveryFee: Number(newSettings.delivery_fee ?? newSettings.base_delivery_fee ?? 0),
+                minOrderAmount: Number(newSettings.minimum_order ?? newSettings.min_order_amount ?? 0)
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      return {
+      items: [],
+      distance: 0,
+      deliveryFee: 0,
+      minOrderAmount: 0,
+      selectedAddress: null,
+      isServiceable: true,
+      isCheckingRadius: false,
+      addItem: (product, variant, quantity = 1) => {
+        try {
+          const isJuice = product.category?.toLowerCase().includes('juice');
+          const variantId = variant?.id;
+          const price = ProductService.getPrice(product, variant);
+          const cartItemId = isJuice ? `${product.id}-${variantId}` : product.id;
+
+          // Mandatory Stock Check
+          const currentStock = product.stock || 0;
+          if (currentStock <= 0) {
+            Alert.alert("Out of Stock", "This item is currently unavailable.");
+            return;
+          }
+
+          set((state) => {
+            const existingItem = state.items.find((item) => item.id === cartItemId);
+            
+            if (existingItem) {
+              const newQty = existingItem.quantity + quantity;
+              if (newQty > currentStock) {
+                Alert.alert("Stock Limit", `Only ${currentStock} items available for ${product.name}.`);
+                return state;
+              }
+              return {
+                items: state.items.map((item) => 
+                  item.id === cartItemId 
+                    ? { ...item, quantity: newQty, subtotal: newQty * price, stock: currentStock }
+                    : item
+                )
+              };
+            }
+
+            if (quantity > currentStock) {
+              Alert.alert("Stock Limit", `Only ${currentStock} items available.`);
+              return state;
+            }
+
+            const newItem: CartItem = {
+              id: cartItemId,
+              productId: product.id,
+              name: product.name,
+              category: product.category as any,
+              variantId,
+              variantName: variant?.variant_type,
+              quantity,
+              price,
+              subtotal: price * quantity,
+              image: product.image_url,
+              stock: currentStock,
+              size: isJuice ? (product.quantity || '300ml') : product.quantity,
+            };
+            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            return { items: [...state.items, newItem] };
+          });
+        } catch (err) {
+          console.error('[CART_ERROR] addItem failed:', err);
+        }
+      },
+      removeItem: (id) => {
         set((state) => {
-          const existingItem = state.items.find((item) => item.id === cartItemId);
-          if (existingItem) {
-            const newQuantity = existingItem.quantity + quantity;
+          const existingItem = state.items.find((item) => item.id === id);
+          if (!existingItem) return state;
+
+          if (existingItem.quantity > 1) {
+            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             return {
               items: state.items.map((item) => 
-                item.id === cartItemId 
-                  ? { ...item, quantity: newQuantity, subtotal: newQuantity * price }
+                item.id === id 
+                  ? { ...item, quantity: item.quantity - 1, subtotal: (item.quantity - 1) * item.price }
                   : item
               )
             };
           }
-          const newItem: CartItem = {
-            id: cartItemId,
-            productId: product.id,
-            name: product.name,
-            category: product.category,
-            variantId,
-            variantName: variant?.variant_type,
-            quantity,
-            price,
-            subtotal: price * quantity,
-            image: product.image_url,
+
+          if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          return {
+            items: state.items.filter((item) => item.id !== id)
           };
-          if (Platform.OS !== 'web') {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          }
-          return { items: [...state.items, newItem] };
         });
       },
-      removeItem: (id) => {
-        if (Platform.OS !== 'web') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      updateQuantity: (id, quantity) => {
+        if (quantity <= 0) {
+          get().removeItem(id);
+          return;
         }
-        set((state) => ({
-          items: state.items.filter((item) => item.id !== id)
-        }))
+        set((state) => {
+          const item = state.items.find(i => i.id === id);
+          if (item && quantity > item.stock) {
+            Alert.alert("Stock Limit", `Only ${item.stock} items available.`);
+            return state;
+          }
+          return {
+            items: state.items.map((item) => 
+              item.id === id 
+                ? { ...item, quantity, subtotal: quantity * item.price }
+                : item
+            )
+          };
+        });
       },
-      updateQuantity: (id, quantity) => set((state) => ({
-        items: state.items.map((item) => 
-          item.id === id 
-            ? { ...item, quantity, subtotal: quantity * item.price }
-            : item
-        )
-      })),
-      clearCart: () => set({ items: [], deliveryFee: 0 }),
+      validateCartStock: async () => {
+        const { items } = get();
+        if (items.length === 0) return true;
+
+        try {
+          const productIds = items.map(i => i.productId);
+          const { data, error } = await supabase
+            .from('products')
+            .select('id, stock, name')
+            .in('id', productIds);
+
+          if (error) throw error;
+
+          const stockMap = data.reduce((acc: any, p) => {
+            acc[p.id] = p.stock;
+            return acc;
+          }, {});
+
+          let itemsAdjusted = false;
+          const updatedItems = items.map(item => {
+            const availableStock = stockMap[item.productId] || 0;
+            if (item.quantity > availableStock) {
+              itemsAdjusted = true;
+              return { 
+                ...item, 
+                quantity: availableStock, 
+                subtotal: availableStock * item.price,
+                stock: availableStock 
+              };
+            }
+            return { ...item, stock: availableStock };
+          }).filter(item => item.quantity > 0);
+
+          if (itemsAdjusted) {
+            set({ items: updatedItems });
+            Alert.alert(
+              "Stock Updated",
+              "Some items in your cart were updated or removed because they are no longer in stock."
+            );
+            return false;
+          }
+          return true;
+        } catch (err) {
+          console.error('[CART_SYNC] Stock validation failed:', err);
+          return true; // Proceed with caution if validation fails
+        }
+      },
+      clearCart: () => set({ items: [], deliveryFee: 0, distance: 0 }),
       getTotal: () => get().items.reduce((acc, item) => acc + item.subtotal, 0),
       getGrandTotal: () => get().getTotal() + get().deliveryFee,
+      setSelectedAddress: async (addr: AddressData) => {
+        set({ selectedAddress: addr, isCheckingRadius: true });
+        
+        // Persist to Supabase if logged in
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            console.log('[CART_SYNC] Persisting address to profile:', user.id);
+            await supabase.from('profiles').update({ 
+              address: addr.formattedAddress,
+              updated_at: new Date().toISOString()
+            }).eq('id', user.id);
+          }
+        } catch (syncErr) {
+          console.warn('[CART_SYNC] Failed to persist address to DB', syncErr);
+        }
+
+        if (addr.latitude && addr.longitude) {
+          try {
+            await get().updateDeliveryFee(addr.latitude, addr.longitude);
+          } catch (err) {
+            console.warn('[LOGISTICS_ERROR] Address outside radius');
+          }
+        }
+        set({ isCheckingRadius: false });
+      },
       updateDeliveryFee: async (lat, lng) => {
         try {
-          // 1. Fetch Store Settings for Shop Location & Max Radius
-          const { data: settings, error: sError } = await supabase
-            .from('store_settings')
+          const { data: settings } = await supabase
+            .from('settings')
             .select('*')
-            .limit(1)
-            .single();
+            .eq('id', 'store_settings')
+            .maybeSingle();
 
-          if (sError || !settings) throw new Error("Store configuration missing");
+          const shopLat = Number(settings?.latitude || settings?.store_lat);
+          const shopLng = Number(settings?.longitude || settings?.store_lng);
+          const maxRadius = Number(settings?.service_radius_km || settings?.delivery_radius || 10);
+          const minAmount = Number(settings?.minimum_order || settings?.min_order_amount || 0);
 
-          // 2. Calculate Distance
-          const shopLat = settings.shop_latitude || STORE_CONFIG.latitude;
-          const shopLng = settings.shop_longitude || STORE_CONFIG.longitude;
-          
-          const distance = LocationService.calculateDistance(shopLat, shopLng, lat, lng);
-          const maxRadius = settings.max_delivery_radius || STORE_CONFIG.DEFAULT_MAX_RADIUS_KM;
-
-          // 3. Radius Blocking & Fee Logic
-          if (distance > maxRadius) {
-            throw new Error(`Sorry, delivery is unavailable for your location. (Distance: ${distance}km, Max Serviceable: ${maxRadius}km)`);
+          if (!shopLat || !shopLng) {
+            console.error('[LOGISTICS] Error: Store coordinates not found in settings.');
+            return;
           }
 
-          // 4. Dynamic Zone Calculation
-          let fee = 0;
-          const freeRadius = settings.free_delivery_radius || 3;
+          const dist = LocationService.calculateDistance(shopLat, shopLng, lat, lng);
           
-          if (distance <= freeRadius) {
-            fee = 0; // Zone 1: Free
-          } else if (distance <= maxRadius) {
-            fee = settings.delivery_fee || 30; // Zone 2: Paid
+          console.log('--- [CART_LOGISTICS_DEBUG] ---');
+          console.log(`STORE_COORDS: ${shopLat}, ${shopLng}`);
+          console.log(`USER_COORDS: ${lat}, ${lng}`);
+          console.log(`ADMIN_RADIUS: ${maxRadius} km`);
+          console.log(`CALCULATED_DISTANCE: ${dist} km`);
+          console.log('------------------------------');
+
+          set({ distance: dist, minOrderAmount: minAmount });
+
+          if (dist > maxRadius) {
+            set({ deliveryFee: 0, isServiceable: false });
+            throw new Error(`Out of delivery range. Our max radius is ${maxRadius}km.`);
           }
 
-          set({ deliveryFee: fee });
+          const fee = Number(settings?.delivery_fee || settings?.base_delivery_fee || 0);
+          set({ deliveryFee: fee, isServiceable: true });
           return fee;
         } catch (err: any) {
-          console.warn('[CartStore] Delivery validation failed:', err.message);
-          set({ deliveryFee: 0 });
+          set({ deliveryFee: 0, isServiceable: false });
           throw err;
         }
       },
-      placeOrder: async (userId, address, paymentType, initialStatus = 'received', locationData) => {
+      placeOrder: async (userId, address, paymentType, initialStatus = 'PENDING', locationData, customerName, customerPhone) => {
         return await monitor.trackPerformance('PlaceOrder', async () => {
-          const { items, getTotal } = get();
+          const { items, deliveryFee, distance } = get();
           try {
-            // Transform items for the RPC
-            const rpcItems = items.map(item => ({
-              product_id: item.productId,
-              variant_id: item.variantId,
-              quantity: item.quantity,
-              category: item.category,
-              price_at_time: item.price,
-              subtotal: item.subtotal
-            }));
+            const rpcItems = items.map(item => {
+              // Only send variant_id if it looks like a valid UUID (36 chars)
+              // Frontend-only strings like 'classic' or 'pure' will be sent as null to avoid DB crash
+              const isUuid = item.variantId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.variantId);
+              
+              return {
+                product_id: item.productId,
+                variant_id: isUuid ? item.variantId : null,
+                quantity: item.quantity,
+                price_at_time: item.price,
+                subtotal: item.subtotal
+              };
+            });
 
-            const { data, error } = await supabase.rpc('place_order_v1', {
+            const payload = {
               p_user_id: userId,
               p_address: address,
-              p_total_amount: get().getGrandTotal(), // Use grand total including fee
+              p_total_amount: get().getGrandTotal(),
               p_payment_type: paymentType,
               p_items: rpcItems,
               p_initial_status: initialStatus,
-              p_latitude: locationData?.latitude,
-              p_longitude: locationData?.longitude,
-              p_formatted_address: locationData?.formattedAddress,
-              p_city: locationData?.city,
-              p_postal_code: locationData?.postalCode,
-              p_landmark: locationData?.landmark,
-              p_delivery_fee: get().deliveryFee // Pass the fee
-            });
+              p_latitude: locationData?.latitude || 0,
+              p_longitude: locationData?.longitude || 0,
+              p_distance_km: distance,
+              p_delivery_fee: deliveryFee,
+              p_customer_name: customerName,
+              p_customer_phone: customerPhone
+            };
 
-            if (error) throw error;
-            if (!data.success) throw new Error(data.message);
+            // ── PROFILE INTEGRITY CHECK ──────────────────────────
+            // Ensures a profile exists to prevent FK violation 23503.
+            try {
+              const { data: profile, error: profileCheckError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', userId)
+                .maybeSingle();
+
+              if (!profile || profileCheckError) {
+                console.log('[CART_CHECKOUT] Profile missing, creating entry for:', userId);
+                await supabase.from('profiles').upsert({
+                  id: userId,
+                  full_name: customerName || 'Customer',
+                  role: 'customer',
+                  updated_at: new Date().toISOString()
+                });
+              }
+            } catch (err) {
+              console.warn('[CART_CHECKOUT] Profile sync warning:', err);
+            }
+
+            console.log('[RPC_PRE-FLIGHT] Calling place_order_v2 with payload:', JSON.stringify(payload, null, 2));
+
+            const { data, error } = await supabase.rpc('place_order_v2', payload);
+            
+            if (error) {
+              console.error('[RPC_ERROR]', error);
+              let friendlyMessage = error.message;
+              if (error.code === '23503') friendlyMessage = "Profile sync error. Please try again.";
+              if (error.message?.includes('not found')) friendlyMessage = "Database sync required. Please contact support.";
+              
+              throw new Error(`${friendlyMessage} (Code: ${error.code})`);
+            }
+
+            if (!data || !data.success) {
+              throw new Error(data?.message || 'Order placement failed on server.');
+            }
+
+            const newOrderId = data.order_id;
+            console.log('[RPC_SUCCESS] Order created:', newOrderId);
+
+            // ── TRIGGER NOTIFICATIONS ──────────────────────────────────
+            try {
+              const apiURL = process.env.EXPO_PUBLIC_API_URL || 'https://juice-app-9uzq.onrender.com';
+              console.log('[Notification_Debug] Triggering alert via:', apiURL);
+              
+              const response = await fetch(`${apiURL}/api/notification/send-order`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderData: {
+                    id: newOrderId,
+                    customerName: customerName || 'Guest',
+                    customerPhone: customerPhone || 'N/A',
+                    address: address,
+                    latitude: locationData?.latitude || 0,
+                    longitude: locationData?.longitude || 0,
+                    landmark: locationData?.landmark || '',
+                    items: items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
+                    total: payload.p_total_amount,
+                    paymentType: paymentType,
+                    createdAt: new Date().toISOString()
+                  }
+                })
+              });
+
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.warn('[Notification_Error] Server responded with error:', response.status, errorText);
+              } else {
+                const resData = await response.json();
+                console.log('[Notification_Success] Server acknowledged notification:', resData);
+              }
+            } catch (notifyErr: any) {
+              console.warn('[Notification_Network_Error] Failed to reach notification server:', notifyErr.message);
+            }
 
             if (Platform.OS !== 'web') {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              try {
+                const Haptics = require('expo-haptics');
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              } catch {}
             }
-            return data.order_id;
+
+            return newOrderId;
           } catch (error: any) {
-            const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-            monitor.log('ERROR', 'Checkout', 'Order placement failed', { 
-              message: errorMessage,
-              stack: error.stack 
-            });
-            Alert.alert('Order Failed', errorMessage || 'Inventory check or connection failed.');
+            console.error('[ORDER_CRITICAL_FAILURE]', error);
+            Alert.alert('Order Placement Failed', error.message);
             return null;
           }
         });
       },
-    }),
-    {
-      name: 'juice-shop-cart-storage',
-      storage: createJSONStorage(() => AsyncStorage),
-    }
-  )
+    };
+  },
+  {
+    name: 'juice-shop-cart-storage',
+    storage: createJSONStorage(() => AsyncStorage),
+    onRehydrateStorage: (state) => {
+      return (state, error) => {
+        if (state) {
+          // Fetch fresh settings on rehydration (app launch)
+          supabase
+            .from('settings')
+            .select('*')
+            .eq('id', 'store_settings')
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data) {
+                console.log('[CART_INIT] Settings re-fetched from DB.');
+                state.deliveryFee = Number(data.delivery_fee ?? data.base_delivery_fee ?? 0);
+                state.minOrderAmount = Number(data.minimum_order ?? data.min_order_amount ?? 0);
+              }
+            });
+        }
+      };
+    },
+  }
+)
 );

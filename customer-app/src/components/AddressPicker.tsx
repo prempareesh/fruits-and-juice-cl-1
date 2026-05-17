@@ -21,6 +21,7 @@ import {
   RefreshCcw,
 } from 'lucide-react-native';
 import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../theme/tokens';
+import { useCartStore } from '../store/useCartStore';
 
 export type AddressData = StructuredAddress;
 
@@ -31,10 +32,11 @@ interface AddressPickerProps {
 
 export default function AddressPicker({ onAddressSelect, initialAddress }: AddressPickerProps) {
   const { loading, error, address: fetchedAddress, fetchLocation, openSettings } = useLocation();
+  const { selectedAddress: storeAddress, setSelectedAddress } = useCartStore();
   const [isManual, setIsManual] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const [address, setAddress] = useState<AddressData>({
+  const [address, setAddress] = useState<AddressData>(storeAddress || {
     formattedAddress: initialAddress?.formattedAddress || '',
     street: initialAddress?.street || '',
     houseNumber: initialAddress?.houseNumber || '',
@@ -46,7 +48,11 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
     landmark: initialAddress?.landmark || '',
     latitude: initialAddress?.latitude || 0,
     longitude: initialAddress?.longitude || 0,
+    receiverName: initialAddress?.receiverName || '',
+    receiverPhone: initialAddress?.receiverPhone || '',
   });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleManualChange = (field: keyof AddressData, value: string | number) => {
     setAddress(prev => {
@@ -64,28 +70,67 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
       }
       return next;
     });
+    // Clear error for the field being edited
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!address.receiverName?.trim()) newErrors.receiverName = 'Name is required';
+    if (!address.receiverPhone?.trim()) newErrors.receiverPhone = 'Mobile is required';
+    else if (!/^\d{10}$/.test(address.receiverPhone)) newErrors.receiverPhone = 'Invalid 10-digit mobile';
+    
+    if (!address.street?.trim()) newErrors.street = 'Street is required';
+    if (!address.area?.trim()) newErrors.area = 'Area is required';
+    if (!address.city?.trim()) newErrors.city = 'City is required';
+    if (!address.postalCode?.trim()) newErrors.postalCode = 'Pincode is required';
+    else if (!/^\d{6}$/.test(address.postalCode)) newErrors.postalCode = 'Invalid 6-digit pincode';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+  
+  const handleSave = () => {
+    if (validate()) {
+      setSelectedAddress(address);
+      onAddressSelect(address);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    }
   };
 
   // Sync when hook successfully fetches an address
   useEffect(() => {
     if (fetchedAddress) {
-      setAddress(prev => ({
-        ...prev,
+      const updatedAddr = {
+        ...address,
         ...fetchedAddress,
-        landmark: prev.landmark // Preserve typed landmark
-      }));
+        landmark: address.landmark
+      };
+      setAddress(updatedAddr);
+      setSelectedAddress(updatedAddr);
       setSuccess(true);
       setIsManual(false);
       setTimeout(() => setSuccess(false), 3000);
     }
-  }, [fetchedAddress]);
+  }, [fetchedAddress, setSelectedAddress]);
 
   // Sync with parent whenever the address object changes
   useEffect(() => {
     if (address.formattedAddress) {
-      onAddressSelect(address);
+      const isValid = address.receiverName && address.receiverPhone && address.street && address.area && address.city && address.postalCode;
+      if (isValid) {
+        onAddressSelect(address);
+        setSelectedAddress(address);
+      }
     }
-  }, [address, onAddressSelect]);
+  }, [address, onAddressSelect, setSelectedAddress]);
 
   const handleFetchClick = () => {
     if (loading) return;
@@ -157,6 +202,31 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
 
               {isManual && (
                 <View style={styles.manualFields}>
+                  <Text style={styles.fieldGroupLabel}>Receiver Details</Text>
+                  <View style={styles.row}>
+                    <View style={{ flex: 1 }}>
+                      <TextInput
+                        style={[styles.input, errors.receiverName ? styles.inputError : null]}
+                        placeholder="Receiver Name *"
+                        value={address.receiverName}
+                        onChangeText={(v) => handleManualChange('receiverName', v)}
+                      />
+                      {errors.receiverName && <Text style={styles.errorLabel}>{errors.receiverName}</Text>}
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <TextInput
+                        style={[styles.input, errors.receiverPhone ? styles.inputError : null]}
+                        placeholder="Mobile Number *"
+                        value={address.receiverPhone}
+                        onChangeText={(v) => handleManualChange('receiverPhone', v)}
+                        keyboardType="phone-pad"
+                        maxLength={10}
+                      />
+                      {errors.receiverPhone && <Text style={styles.errorLabel}>{errors.receiverPhone}</Text>}
+                    </View>
+                  </View>
+
+                  <Text style={[styles.fieldGroupLabel, { marginTop: 8 }]}>Address Details</Text>
                   <View style={styles.row}>
                     <TextInput
                       style={[styles.input, { flex: 1 }]}
@@ -164,20 +234,26 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
                       value={address.houseNumber}
                       onChangeText={(v) => handleManualChange('houseNumber', v)}
                     />
-                    <TextInput
-                      style={[styles.input, { flex: 2, marginLeft: 8 }]}
-                      placeholder="Street/Road Name"
-                      value={address.street}
-                      onChangeText={(v) => handleManualChange('street', v)}
-                    />
+                    <View style={{ flex: 2, marginLeft: 8 }}>
+                      <TextInput
+                        style={[styles.input, errors.street ? styles.inputError : null]}
+                        placeholder="Street/Road Name *"
+                        value={address.street}
+                        onChangeText={(v) => handleManualChange('street', v)}
+                      />
+                      {errors.street && <Text style={styles.errorLabel}>{errors.street}</Text>}
+                    </View>
                   </View>
                   <View style={styles.row}>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      placeholder="Area/Locality"
-                      value={address.area}
-                      onChangeText={(v) => handleManualChange('area', v)}
-                    />
+                    <View style={{ flex: 1 }}>
+                      <TextInput
+                        style={[styles.input, errors.area ? styles.inputError : null]}
+                        placeholder="Area/Locality *"
+                        value={address.area}
+                        onChangeText={(v) => handleManualChange('area', v)}
+                      />
+                      {errors.area && <Text style={styles.errorLabel}>{errors.area}</Text>}
+                    </View>
                     <TextInput
                       style={[styles.input, { flex: 1, marginLeft: 8 }]}
                       placeholder="Landmark (Optional)"
@@ -186,20 +262,31 @@ export default function AddressPicker({ onAddressSelect, initialAddress }: Addre
                     />
                   </View>
                   <View style={styles.row}>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      placeholder="City"
-                      value={address.city}
-                      onChangeText={(v) => handleManualChange('city', v)}
-                    />
-                    <TextInput
-                      style={[styles.input, { flex: 1, marginLeft: 8 }]}
-                      placeholder="Pincode"
-                      value={address.postalCode}
-                      onChangeText={(v) => handleManualChange('postalCode', v)}
-                      keyboardType="numeric"
-                    />
+                    <View style={{ flex: 1 }}>
+                      <TextInput
+                        style={[styles.input, errors.city ? styles.inputError : null]}
+                        placeholder="City *"
+                        value={address.city}
+                        onChangeText={(v) => handleManualChange('city', v)}
+                      />
+                      {errors.city && <Text style={styles.errorLabel}>{errors.city}</Text>}
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <TextInput
+                        style={[styles.input, errors.postalCode ? styles.inputError : null]}
+                        placeholder="Pincode *"
+                        value={address.postalCode}
+                        onChangeText={(v) => handleManualChange('postalCode', v)}
+                        keyboardType="numeric"
+                        maxLength={6}
+                      />
+                      {errors.postalCode && <Text style={styles.errorLabel}>{errors.postalCode}</Text>}
+                    </View>
                   </View>
+                  
+                  <TouchableOpacity style={styles.saveManualBtn} onPress={handleSave}>
+                    <Text style={styles.saveManualText}>Verify & Save Details</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -380,5 +467,36 @@ const styles = StyleSheet.create({
     color: COLORS.mutedGray,
     fontSize: 13,
     fontWeight: '600',
+  },
+  fieldGroupLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.mutedGray,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  inputError: {
+    borderColor: COLORS.error,
+    backgroundColor: '#FFF5F5',
+  },
+  errorLabel: {
+    color: COLORS.error,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 2,
+    marginLeft: 4,
+  },
+  saveManualBtn: {
+    backgroundColor: COLORS.primaryGreen,
+    paddingVertical: 12,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  saveManualText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

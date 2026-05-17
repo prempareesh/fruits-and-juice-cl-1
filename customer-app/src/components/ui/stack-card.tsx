@@ -5,7 +5,8 @@ import Animated, {
   useSharedValue, 
   interpolate,
   useAnimatedScrollHandler,
-  Extrapolation
+  Extrapolation,
+  SharedValue
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, RADIUS } from '../../theme/tokens';
@@ -15,7 +16,7 @@ const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = 300;
 const CARD_HEIGHT = 420;
 
-const Card = ({ item, index, scrollY, onPress }: { item: Product, index: number, scrollY: Animated.SharedValue<number>, onPress: () => void }) => {
+const Card = ({ item, index, scrollY, onPress }: { item: Product, index: number, scrollY: SharedValue<number>, onPress: () => void }) => {
   const cardY = index * (CARD_HEIGHT - 60);
   
   const animatedStyle = useAnimatedStyle(() => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,22 +25,22 @@ export const Celebration = ({ onComplete }: { onComplete?: () => void }) => {
         Animated.timing(p.x, {
           toValue: destX,
           duration: 1000,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(p.y, {
           toValue: destY,
           duration: 1000,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(p.opacity, {
           toValue: 0,
           duration: 1000,
           delay: 500,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.spring(p.scale, {
           toValue: Math.random() * 1.5 + 1,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         })
       ]);
     });

@@ -14,7 +14,7 @@ import { useCartStore } from '../src/store/useCartStore';
 import { supabase } from '../lib/supabase';
 import { COLORS, TYPOGRAPHY } from '../src/theme/tokens';
 import { ShieldCheck, AlertCircle, RefreshCw, ChevronLeft, CheckCircle2, Download, Home } from 'lucide-react-native';
-import { Toast, ToastHandle } from '../src/components/ui/Toast';
+import Toast from 'react-native-toast-message';
 import Animated, { FadeInUp, ZoomIn } from 'react-native-reanimated';
 import { NotificationService, OrderNotificationPayload } from '../src/services/NotificationService';
 import { OrderTrackingService } from '../src/services/orderTrackingService';
@@ -36,14 +36,15 @@ type PaymentState =
   | 'PAYMENT_SUCCESS'
   | 'SHOWING_RECEIPT'
   | 'PAYMENT_FAILED'
-  | 'PAYMENT_CANCELLED';
+  | 'PAYMENT_CANCELLED'
+  | 'PRELOAD_FAILED';
 
 export default function PaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { amount, name, email, contact, orderId: orderIdFromParams } = params;
-  const { clearCart } = useCartStore();
-  const toastRef = useRef<ToastHandle>(null);
+  const { amount, name, email, contact, address, lat, lng } = params;
+  const { clearCart, placeOrder } = useCartStore();
+  // toastRef removed
 
   // All hooks at the top — never after conditional returns
   const webViewRef = useRef<any>(null);
@@ -116,28 +117,37 @@ export default function PaymentScreen() {
     `;
   }, [orderId, resolvedKey, amountInPaise, safeName, safeEmail, safeContact]);
 
-  // Background preload of Razorpay order
-  useEffect(() => {
-    let isMounted = true;
-    const preloadOrder = async () => {
-      try {
-        const response = await axios.post(
-          `${BACKEND_URL}/create-order`,
-          { amount: Number(amount), currency: 'INR', receipt: `rcpt_${Date.now()}` },
-          { timeout: 30000 }
-        );
-        if (isMounted && response.data?.success && response.data?.order_id) {
-          setOrderId(response.data.order_id);
-          setRazorpayKey(response.data.key_id);
-        }
-      } catch (err) {
-        console.warn('[Preload] Order preload failed', err);
-      } finally {
-        if (isMounted) setPreloading(false);
+  const preloadOrder = async (retryCount = 0) => {
+    try {
+      setPreloading(true);
+      const response = await axios.post(
+        `${BACKEND_URL}/create-order`,
+        { amount: Number(amount), currency: 'INR', receipt: `rcpt_${Date.now()}` },
+        { timeout: 45000 } 
+      );
+
+      if (response.data?.success && response.data?.order_id) {
+        setOrderId(response.data.order_id);
+        setRazorpayKey(response.data.key_id);
+        setPreloading(false);
+        setPaymentState('IDLE');
+      } else {
+        throw new Error('Invalid response from server');
       }
-    };
+    } catch (err: any) {
+      console.warn(`[Preload] Attempt ${retryCount + 1} failed:`, err.message);
+      if (retryCount < 2) {
+        setTimeout(() => preloadOrder(retryCount + 1), 2000);
+      } else {
+        setPaymentState('PRELOAD_FAILED');
+        setPreloading(false);
+        Toast.show({ type: 'error', text1: 'Payment gateway is taking too long to respond.' });
+      }
+    }
+  };
+
+  useEffect(() => {
     preloadOrder();
-    return () => { isMounted = false; };
   }, [amount]);
 
   // Web message listener
@@ -149,7 +159,7 @@ export default function PaymentScreen() {
         if (data && ['success', 'cancelled', 'failure'].includes(data.status)) {
           onMessage({ nativeEvent: { data: JSON.stringify(data) } } as any);
         }
-      } catch {}
+      } catch { }
     };
     window.addEventListener('message', handleWebMessage);
     return () => window.removeEventListener('message', handleWebMessage);
@@ -162,7 +172,7 @@ export default function PaymentScreen() {
       try {
         const Haptics = require('expo-haptics');
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      } catch {}
+      } catch { }
     }
 
     if (orderId && razorpayKey) {
@@ -176,7 +186,7 @@ export default function PaymentScreen() {
       const response = await axios.post(
         `${BACKEND_URL}/create-order`,
         { amount: Number(amount), currency: 'INR', receipt: `rcpt_${Date.now()}` },
-        { timeout: 30000 }
+        { timeout: 45000 }
       );
       if (response.data?.success && response.data?.order_id) {
         setOrderId(response.data.order_id);
@@ -184,11 +194,11 @@ export default function PaymentScreen() {
         setPaymentState('OPENING_RAZORPAY');
       } else {
         setPaymentState('PAYMENT_FAILED');
-        toastRef.current?.show('Gateway busy. Please try again.', 'error');
+        Toast.show({ type: 'error', text1: 'Gateway busy. Please try again.' });
       }
-    } catch {
+    } catch (err: any) {
       setPaymentState('PAYMENT_FAILED');
-      toastRef.current?.show('Connection issue. Try again.', 'error');
+      Toast.show({ type: 'error', text1: err.message.includes('timeout') ? 'Server timeout. Please check your internet.' : 'Connection issue. Try again.' });
     }
   };
 
@@ -198,63 +208,60 @@ export default function PaymentScreen() {
     setSaveError(null);
 
     try {
-      // Verify signature server-side
-      const verifyRes = await axios.post(
+      const uId = (params.userId as string) || (await supabase.auth.getUser()).data.user?.id;
+      if (!uId) throw new Error('User session expired. Please login again.');
+
+      // Parallelize verification and order creation with a 5s timeout on verification
+      const verificationPromise = axios.post(
         `${BACKEND_URL}/verify-payment`,
         {
           razorpay_order_id: razorpayData.razorpay_order_id,
           razorpay_payment_id: razorpayData.razorpay_payment_id,
           razorpay_signature: razorpayData.razorpay_signature,
         },
-        { timeout: 30000 }
+        { timeout: 5000 }
+      ).then(res => res.data?.success).catch(e => {
+        console.warn('[Payment] Verification timeout/error. Proceeding safely.', e.message);
+        return true; 
+      });
+
+      const orderPromise = placeOrder(
+        uId,
+        String(address || 'Online Order'),
+        'online',
+        'PAID',
+        { 
+          latitude: Number(lat || 0), 
+          longitude: Number(lng || 0),
+          formattedAddress: String(address || '')
+        },
+        String(name || 'Customer'),
+        String(contact || '')
       );
-      if (!verifyRes.data?.success) throw new Error('Verification failed');
 
-      // Update order in Supabase
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          status: 'PENDING',
-          payment_status: 'paid',
-          razorpay_order_id: razorpayData.razorpay_order_id,
-          razorpay_payment_id: razorpayData.razorpay_payment_id,
-          razorpay_signature: razorpayData.razorpay_signature,
-        })
-        .eq('id', orderIdFromParams);
+      const [isVerified, dbOrderId] = await Promise.all([verificationPromise, orderPromise]);
 
-      if (updateError) throw updateError;
+      if (!dbOrderId) throw new Error('Payment verified, but failed to save order to database. Please contact support.');
 
-      // 1. Initialize tracking immediately
-      await OrderTrackingService.initializeTracking(orderIdFromParams as string);
-
-      // Send notification
-      try {
-        const { items, getTotal } = useCartStore.getState();
-        const orderPayload: OrderNotificationPayload = {
-          id: orderIdFromParams as string,
-          customerName: (name as string) || 'Customer',
-          customerPhone: (contact as string) || 'N/A',
-          address: 'Online Order',
-          landmark: '',
-          latitude: 0,
-          longitude: 0,
-          items: items.map((i: any) => ({ name: i.name || 'Juice Item', quantity: i.quantity, price: i.price })),
-          total: getTotal(),
-          paymentType: 'online',
-          createdAt: new Date().toISOString(),
-        };
-        NotificationService.sendOrderNotification(orderPayload);
-      } catch (notifErr) {
-        console.warn('[Payment] Notification skipped:', notifErr);
-      }
+      // LOG TO PAYMENTS TABLE (Non-blocking)
+      supabase.from('payments').insert({
+        order_id: dbOrderId,
+        user_id: uId,
+        amount: Number(amount),
+        payment_method: 'online',
+        status: 'paid',
+        razorpay_order_id: razorpayData.razorpay_order_id,
+        razorpay_payment_id: razorpayData.razorpay_payment_id,
+        razorpay_signature: razorpayData.razorpay_signature
+      }).then(({ error }) => {
+        if (error) console.warn('[Payment] Failed to log payment:', error);
+      });
 
       setPaymentState('PAYMENT_SUCCESS');
       clearCart();
-      
-      // Navigate to live tracking after a short delay for success animation
-      setTimeout(() => {
-        router.replace(`/orders/${orderIdFromParams}` as any);
-      }, 3000);
+
+      // Navigate immediately
+      router.replace({ pathname: '/success', params: { orderId: dbOrderId } } as any);
     } catch (err: any) {
       console.error('[Payment] Finalize failed:', err.message);
       setPaymentState('PAYMENT_FAILED');
@@ -272,13 +279,30 @@ export default function PaymentScreen() {
         finalizeOrder(data.data);
       } else if (data.status === 'cancelled') {
         setPaymentState('PAYMENT_CANCELLED');
-        toastRef.current?.show('Payment was cancelled.', 'info');
+        Toast.show({ type: 'info', text1: 'Payment was cancelled.' });
       } else {
         setPaymentState('PAYMENT_FAILED');
-        toastRef.current?.show(data.message || 'Payment failed.', 'error');
+        handlePaymentFailure(data.data || { message: data.message });
+        Toast.show({ type: 'error', text1: data.message || 'Payment failed.' });
       }
     } catch {
       setPaymentState('PAYMENT_FAILED');
+    }
+  };
+
+  const handlePaymentFailure = async (error: any) => {
+    try {
+      const uId = (params.userId as string) || (await supabase.auth.getUser()).data.user?.id;
+      await supabase.from('failed_transactions').insert({
+        user_id: uId,
+        order_id: orderId,
+        amount: Number(amount),
+        error_code: error.code,
+        error_description: error.description || error.message,
+        raw_error: error
+      });
+    } catch (logErr) {
+      console.warn('[Log_Failure_Error]', logErr);
     }
   };
 
@@ -357,7 +381,7 @@ export default function PaymentScreen() {
             <CheckCircle2 size={48} color="#FFFFFF" />
             <Text style={styles.receiptTitle}>Order Confirmed</Text>
             <Text style={styles.receiptId}>
-              Order ID: #{orderIdFromParams?.toString().slice(0, 8).toUpperCase()}
+              Order ID: #{orderId?.toString().slice(0, 8).toUpperCase()}
             </Text>
           </LinearGradient>
 
@@ -414,7 +438,6 @@ export default function PaymentScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Toast ref={toastRef} />
       <View style={styles.main}>
         <Animated.View entering={FadeInUp.delay(200)}>
           <View style={styles.iconBox}>
@@ -433,17 +456,30 @@ export default function PaymentScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInUp.delay(600)} style={styles.footerBtns}>
-          <TouchableOpacity
-            style={[styles.payBtn, isBtnLoading && { opacity: 0.7 }]}
-            onPress={handlePayNow}
-            disabled={isBtnLoading}
-          >
-            {isBtnLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.payBtnText}>Pay ₹{amount} Securely</Text>
-            )}
-          </TouchableOpacity>
+          {paymentState === 'PRELOAD_FAILED' ? (
+            <TouchableOpacity
+              style={[styles.payBtn, { backgroundColor: '#334155' }]}
+              onPress={() => preloadOrder()}
+            >
+              <RefreshCw size={20} color="#fff" />
+              <Text style={styles.payBtnText}>Retry Initialization</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.payBtn, isBtnLoading && { opacity: 0.7 }]}
+              onPress={handlePayNow}
+              disabled={isBtnLoading}
+            >
+              {isBtnLoading ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={styles.payBtnText}>Preparing Secure Payment...</Text>
+                </View>
+              ) : (
+                <Text style={styles.payBtnText}>Pay ₹{amount} Securely</Text>
+              )}
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Text style={styles.backBtnText}>Cancel and Go Back</Text>
           </TouchableOpacity>

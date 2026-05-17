@@ -16,12 +16,25 @@ export const ProductService = {
   getPrice: (product: any, variant?: any): number => {
     if (!product) return 0;
     
-    // For Juices: Priority is Variant Price -> Product Price -> Default 70
-    if (product.category === 'juice') {
-      return variant?.price || product.price || 70;
+    // 1. Variant price logic
+    if (variant) {
+      if (variant.price) return variant.price;
+      
+      // Dynamic logic: Pure Juice (very_pure) is 2x the base price
+      const basePrice = product.selling_price || product.price || 70;
+      if (variant.variant_type === 'very_pure') {
+        return basePrice * 2;
+      }
+      return basePrice;
     }
-    
-    // For Fruits: Priority is Price Per Kg -> Product Price -> Default 80
+
+    // 2. New selling_price field takes priority for base product
+    if (product.selling_price) return product.selling_price;
+
+    // 3. Legacy fallbacks
+    if (product.category?.toLowerCase().includes('juice')) {
+      return product.price || 70;
+    }
     return product.price_per_kg || product.price || 80;
   },
 
@@ -45,6 +58,13 @@ export const ProductService = {
       if (isRenderUrl) return `${url}&width=${width}&quality=${quality}`;
       return url.replace('/storage/v1/object/public/', `/storage/v1/render/image/public/`) + `?width=${width}&quality=${quality}&resize=contain`;
     }
+
+    if (url.includes('images.unsplash.com')) {
+      // Remove existing w parameter if any and append requested one
+      const cleanUrl = url.split('?')[0];
+      return `${cleanUrl}?w=${width}&q=${quality}&fit=crop&auto=format`;
+    }
+
     return url;
   },
 
@@ -73,7 +93,7 @@ export const ProductService = {
    * Returns a "Starts From" price string for products with variants.
    */
   getDisplayPriceRange: (product: Product): string => {
-    const basePrice = product.price || product.price_per_kg || 0;
-    return `₹${Math.round(basePrice)}`;
+    const price = ProductService.getPrice(product);
+    return `₹${Math.round(price)}`;
   }
 };

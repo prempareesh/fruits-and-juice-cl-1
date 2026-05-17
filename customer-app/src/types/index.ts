@@ -9,7 +9,18 @@ export interface Product {
   is_available: boolean;
   price_per_kg?: number;
   price?: number;
+  mrp?: number;
+  original_price?: number;
+  selling_price?: number;
   stock_kg?: number;
+  stock?: number;
+  quantity?: string;
+  is_featured?: boolean;
+  is_trending?: boolean;
+  badge?: {
+    text: string;
+    color?: string;
+  };
 }
 
 export interface JuiceVariant {
@@ -37,4 +48,5 @@ export interface Order {
   latitude?: number;
   longitude?: number;
   created_at: string;
+  order_items?: any[];
 }

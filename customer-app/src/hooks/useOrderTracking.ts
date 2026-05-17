@@ -13,6 +13,7 @@ export interface OrderTrackingState {
   isDelivered: boolean;
   isCancelled: boolean;
   isActive: boolean;
+  deliveryPartner?: any;
 }
 
 /**
@@ -29,6 +30,8 @@ export function useOrderTracking(orderId: string): OrderTrackingState {
   const [trackingSteps, setTrackingSteps] = useState<TrackingStep[]>([]);
   const [estimatedDelivery, setEstimatedDelivery] = useState<string | null>(null);
   const [deliveryPartner, setDeliveryPartner] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const cleanupAutoProgressRef = useRef<() => void>();
 
   const applyStatus = useCallback((rawStatus: string, steps: TrackingStep[], eta: string | null, partner?: any) => {
     const normalized = normalizeStatus(rawStatus);

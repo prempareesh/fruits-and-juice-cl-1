@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS } from '../theme/colors';
+import { COLORS } from '../theme/tokens';
 import { TYPOGRAPHY } from '../theme/typography';
 import { getResponsiveCardWidth, BREAKPOINTS } from '../theme/responsive';
 import { ArrowRight } from 'lucide-react-native';

@@ -19,8 +19,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SHOWCASE_CONFIG, SHOWCASE_ITEMS } from '../constants/showcaseConfig';
 import { ProductImage } from './ui/ProductImage';
-import { COLORS, SPACING, RADIUS } from '../theme/colors';
-import { TYPOGRAPHY } from '../theme/typography';
+import { COLORS, TYPOGRAPHY, SPACING, RADIUS, SHADOWS } from '../theme/tokens';
 import { ArrowRight } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

@@ -1,0 +1,193 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  FlatList, 
+  Image, 
+  StyleSheet, 
+  Dimensions, 
+  TouchableOpacity, 
+  Text,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '@/src/theme/tokens';
+import Animated, { FadeInRight } from 'react-native-reanimated';
+
+const { width } = Dimensions.get('window');
+const BANNER_WIDTH = width - 32;
+
+const BANNERS = [
+  {
+    id: '1',
+    title: 'Fresh Fruits Collection',
+    subtitle: 'Farm picked daily for you',
+    image: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=800&q=80',
+    cta: 'Shop Fresh'
+  },
+  {
+    id: '2',
+    title: 'Organic Vegetables',
+    subtitle: 'Direct from the farm',
+    image: 'https://images.unsplash.com/photo-1566385101042-1a0aa0c1268c?w=800&q=80',
+    cta: 'Explore Now'
+  },
+  {
+    id: '3',
+    title: 'Cold Pressed Juices',
+    subtitle: 'Pure hydration, no sugar',
+    image: 'https://images.unsplash.com/photo-1622597467836-f38ec342b311?w=800&q=80',
+    cta: 'Order Healthy'
+  },
+  {
+    id: '4',
+    title: 'Summer Specials',
+    subtitle: 'Beat the heat with freshness',
+    image: 'https://images.unsplash.com/photo-1528498033373-3c6c08e93d79?w=800&q=80',
+    cta: 'Grab Now'
+  }
+];
+
+export const BannerCarousel = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const nextIndex = (activeIndex + 1) % BANNERS.length;
+      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+      setActiveIndex(nextIndex);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [activeIndex]);
+
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const slideSize = event.nativeEvent.layoutMeasurement.width;
+    const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
+    if (index !== activeIndex) setActiveIndex(index);
+  };
+
+  const renderItem = ({ item }: { item: typeof BANNERS[0] }) => (
+    <View style={styles.bannerContainer}>
+      <TouchableOpacity activeOpacity={0.95} style={styles.banner}>
+        <Image source={{ uri: item.image }} style={styles.image} />
+        <LinearGradient
+          colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.7)']}
+          style={styles.overlay}
+        />
+        <View style={styles.content}>
+          <Animated.View entering={FadeInRight.delay(200)}>
+            <Text style={styles.title}>{item.title}</Text>
+            <Text style={styles.subtitle}>{item.subtitle}</Text>
+            <View style={styles.ctaBtn}>
+              <Text style={styles.ctaText}>{item.cta}</Text>
+            </View>
+          </Animated.View>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        ref={flatListRef}
+        data={BANNERS}
+        renderItem={renderItem}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        snapToInterval={width}
+        decelerationRate="fast"
+      />
+      <View style={styles.pagination}>
+        {BANNERS.map((_, i) => (
+          <View 
+            key={i} 
+            style={[
+              styles.dot, 
+              { 
+                backgroundColor: i === activeIndex ? COLORS.primaryGreen : '#E2E8F0', 
+                width: i === activeIndex ? 24 : 8 
+              }
+            ]} 
+          />
+        ))}
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    paddingVertical: SPACING.md,
+    backgroundColor: '#FFF',
+  },
+  bannerContainer: {
+    width: width,
+    paddingHorizontal: SPACING.lg,
+  },
+  banner: {
+    width: BANNER_WIDTH,
+    height: 200,
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
+    ...SHADOWS.md,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    resizeMode: 'cover',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: SPACING.xl,
+  },
+  title: {
+    color: '#FFF',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    fontFamily: Platform.OS === 'ios' ? 'Inter' : 'sans-serif',
+  },
+  subtitle: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: SPACING.md,
+    fontFamily: Platform.OS === 'ios' ? 'Inter' : 'sans-serif',
+  },
+  ctaBtn: {
+    backgroundColor: COLORS.primaryGreen,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: RADIUS.sm,
+    alignSelf: 'flex-start',
+  },
+  ctaText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: SPACING.md,
+  },
+  dot: {
+    height: 6,
+    borderRadius: 3,
+  }
+});

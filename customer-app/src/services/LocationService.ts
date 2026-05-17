@@ -17,27 +17,29 @@ export interface StructuredAddress {
   landmark: string;
   latitude: number;
   longitude: number;
+  receiverName?: string;
+  receiverPhone?: string;
 }
 
 export const LocationService = {
-  async requestPermissions(): Promise<boolean> {
+  async requestPermissions(): Promise<{ granted: boolean; canAskAgain: boolean }> {
     try {
       const enabled = await Location.hasServicesEnabledAsync();
       if (!enabled) {
         monitor.log('WARN', 'Location', 'Location services disabled at system level');
-        return false;
+        return { granted: false, canAskAgain: true };
       }
 
-      const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
+      const { status: existingStatus, canAskAgain: existingCanAsk } = await Location.getForegroundPermissionsAsync();
       if (existingStatus === 'granted') {
-        return true;
+        return { granted: true, canAskAgain: true };
       }
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      return status === 'granted';
+      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+      return { granted: status === 'granted', canAskAgain };
     } catch (err) {
       monitor.log('ERROR', 'Location', 'Permission workflow failed', { err });
-      return false; 
+      return { granted: false, canAskAgain: true }; 
     }
   },
 
@@ -77,6 +79,53 @@ export const LocationService = {
     }
   },
 
+  async geocode(address: string): Promise<{ latitude: number; longitude: number } | null> {
+    // 1. Google Maps (Primary)
+    if (GOOGLE_MAPS_API_KEY) {
+      try {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY}`;
+        const { data } = await axios.get(url, { timeout: 15000 });
+        if (data.status === 'OK' && data.results.length > 0) {
+          const loc = data.results[0].geometry.location;
+          return { latitude: loc.lat, longitude: loc.lng };
+        }
+      } catch (err) {
+        monitor.log('WARN', 'Location', 'Google Forward Geocode failed', { err });
+      }
+    }
+
+    // 2. Nominatim (Fallback)
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+      
+      // EXTREMELY IMPORTANT: On Web, setting 'User-Agent' causes a forbidden header error.
+      // However, Nominatim policy asks for one. We'll only set it on Native platforms.
+      const headers: any = {
+        'Accept': 'application/json',
+      };
+      
+      if (Platform.OS !== 'web') {
+        headers['User-Agent'] = 'JuiceApp/1.0 (FreshFlow Quick-Commerce Fallback)';
+      }
+
+      const { data } = await axios.get(url, { 
+        timeout: 20000, // Increased for stability
+        headers 
+      });
+
+      if (data && data.length > 0) {
+        return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
+      }
+    } catch (err: any) {
+      monitor.log('WARN', 'Location', 'Nominatim Forward Geocode failed', { 
+        message: err?.message,
+        code: err?.code 
+      });
+    }
+
+    return null;
+  },
+
   async reverseGeocode(latitude: number, longitude: number): Promise<StructuredAddress | null> {
     const baseAddress: StructuredAddress = {
       formattedAddress: '', street: '', houseNumber: '', area: '', 
@@ -87,7 +136,7 @@ export const LocationService = {
     if (GOOGLE_MAPS_API_KEY) {
       try {
         const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`;
-        const { data } = await axios.get(url, { timeout: 8000 });
+        const { data } = await axios.get(url, { timeout: 15000 });
         if (data.status === 'OK' && data.results.length > 0) {
           const result = data.results[0];
           const c = result.address_components;
@@ -115,10 +164,22 @@ export const LocationService = {
       }
     }
 
-    // 2. Nominatim OpenStreetMap (Secondary Reliable)
+    // 2. Nominatim (Fallback)
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`;
-      const { data } = await axios.get(url, { headers: { 'User-Agent': 'JuicyApp/1.0' }, timeout: 8000 });
+      
+      const headers: any = {
+        'Accept': 'application/json',
+      };
+      if (Platform.OS !== 'web') {
+        headers['User-Agent'] = 'JuiceApp/1.0 (FreshFlow Quick-Commerce Fallback)';
+      }
+
+      const { data } = await axios.get(url, { 
+        timeout: 20000, 
+        headers 
+      });
+
       if (data?.address) {
         const addr = data.address;
         const city = addr.city || addr.town || addr.village || addr.county || '';
@@ -144,8 +205,11 @@ export const LocationService = {
           };
         }
       }
-    } catch (err) {
-      monitor.log('WARN', 'Location', 'Nominatim fallback failed', { err });
+    } catch (err: any) {
+      monitor.log('WARN', 'Location', 'Nominatim reverse fallback failed', { 
+        message: err?.message,
+        code: err?.code 
+      });
     }
 
     // 3. Native Expo Fallback (SDK 49 Compatible, try/catch wrapped)

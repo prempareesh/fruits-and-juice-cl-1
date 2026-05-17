@@ -36,7 +36,6 @@ export const DestinationCard = ({
       onPress={onPress}
       onAddToCart={onAddToCart}
       category={category}
-      variant="elevated"
     />
   );
 };

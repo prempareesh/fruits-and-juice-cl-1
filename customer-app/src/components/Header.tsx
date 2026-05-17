@@ -1,58 +1,61 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
-import { COLORS, SPACING, SHADOWS, RADIUS } from '../theme/tokens';
-import { JuicyLogo } from './JuicyLogo';
-import { ShoppingCart, Bell } from 'lucide-react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Platform, TextInput } from 'react-native';
+import { COLORS, SPACING, SHADOWS } from '../theme/tokens';
+import { ShoppingCart, MapPin, ChevronDown, Search, User, X, ShoppingBag } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useCartStore } from '../store/useCartStore';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { ImpactFeedbackStyle } from 'expo-haptics';
 
-export const Header = () => {
+interface HeaderProps {
+  searchQuery?: string;
+  setSearchQuery?: (query: string) => void;
+  onFilterPress?: () => void;
+}
+
+import { scale, moderateScale, wp } from '../utils/responsive';
+
+export const Header: React.FC<HeaderProps> = ({ 
+  searchQuery = '', 
+  setSearchQuery,
+}) => {
   const router = useRouter();
   const items = useCartStore((state) => state.items);
   const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
   const insets = useSafeAreaInsets();
 
-  const handleIconPress = (route: string) => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(ImpactFeedbackStyle.Light);
-    }
-    router.push(route as any);
-  };
-
   return (
-    <View style={[styles.outerContainer, { paddingTop: Math.max(insets.top, SPACING.xs) }]}>
-      <BlurView intensity={80} tint="light" style={styles.blurContainer}>
-        <LinearGradient
-          colors={['rgba(255,247,230,0.8)', 'rgba(255,255,255,0.9)']}
-          style={styles.gradient}
-        >
-          <TouchableOpacity 
-            style={styles.logoWrapper}
-            onPress={() => router.replace('/(tabs)')}
-          >
-            <JuicyLogo size={38} withText={false} />
-          </TouchableOpacity>
-          
-          <Text style={styles.logoText}>Juicy<Text style={{ color: COLORS.primaryOrange }}>App</Text></Text>
-
-          <View style={styles.rightIcons}>
+    <View style={[styles.outerContainer, { paddingTop: Math.max(insets.top, 8) }]}>
+      <View style={styles.contentWrapper}>
+        {/* Row 1: Logo/Location & Actions */}
+        <View style={styles.topRow}>
+          <View style={styles.locationGroup}>
             <TouchableOpacity 
-              style={styles.iconButton} 
-              onPress={() => handleIconPress('/notifications')}
+              onPress={() => router.replace('/(tabs)')}
+              style={styles.logoBox}
             >
-              <Bell size={22} color={COLORS.darkText} />
+              <Text style={styles.logoText}>FF</Text>
             </TouchableOpacity>
-            
+            <View style={styles.deliveryInfo}>
+              <View style={styles.deliveryStatus}>
+                <Text style={styles.deliveryLabel}>Delivery in 15 mins</Text>
+                <ChevronDown size={12} color={COLORS.primaryGreen} />
+              </View>
+              <Text style={styles.addressText} numberOfLines={1}>Home - Nellore, Andhra Pradesh...</Text>
+            </View>
+          </View>
+
+          <View style={styles.actionGroup}>
             <TouchableOpacity 
-              style={styles.iconButton} 
-              onPress={() => handleIconPress('/(tabs)/cart')}
+              style={styles.profileBtn}
+              onPress={() => router.push('/profile' as any)}
             >
-              <ShoppingCart size={22} color={COLORS.darkText} />
+              <User size={20} color="#1E293B" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.cartBtn}
+              onPress={() => router.push('/(tabs)/cart' as any)}
+            >
+              <ShoppingBag size={20} color="#1E293B" />
               {cartCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{cartCount}</Text>
@@ -60,72 +63,156 @@ export const Header = () => {
               )}
             </TouchableOpacity>
           </View>
-        </LinearGradient>
-      </BlurView>
+        </View>
+
+        {/* Row 2: Full Width Search Bar */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchBar}>
+            <Search size={16} color="#94A3B8" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search for 'milk', 'bread'..."
+              placeholderTextColor="#94A3B8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+            />
+          </View>
+        </View>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   outerContainer: {
-    backgroundColor: COLORS.creamBackground,
+    backgroundColor: '#FFFFFF',
+    width: '100%',
     zIndex: 100,
   },
-  blurContainer: {
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    overflow: 'hidden',
-    ...SHADOWS.md,
+  contentWrapper: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  gradient: {
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 48,
+    width: '100%',
+    zIndex: 10,
+  },
+  locationGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    flex: 1,
+    paddingRight: 10,
+    height: '100%',
   },
-  logoWrapper: {
-    backgroundColor: COLORS.white,
-    padding: 2,
+  logoBox: {
+    width: 38,
+    height: 38,
+    backgroundColor: COLORS.primaryGreen,
     borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    flexShrink: 0,
     ...SHADOWS.sm,
   },
   logoText: {
-    fontSize: 20,
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '900',
-    color: COLORS.primaryGreen,
-    marginLeft: SPACING.sm,
-    flex: 1,
-    letterSpacing: -0.5,
+    fontFamily: Platform.OS === 'web' ? 'Poppins, sans-serif' : 'Poppins_700Bold',
   },
-  rightIcons: {
+  deliveryInfo: {
+    flex: 1,
+    justifyContent: 'center',
+    maxWidth: '70%',
+  },
+  deliveryStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  deliveryLabel: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#0F172A',
+    fontFamily: Platform.OS === 'web' ? 'Poppins, sans-serif' : 'Poppins_700Bold',
+  },
+  addressText: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'web' ? 'Poppins, sans-serif' : 'Poppins_400Regular',
+  },
+  actionGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
   },
-  iconButton: {
-    padding: 10,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+  profileBtn: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 18,
+  },
+  cartBtn: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 18,
+    position: 'relative',
   },
   badge: {
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: COLORS.primaryOrange,
+    backgroundColor: COLORS.primaryGreen,
+    borderRadius: 10,
     minWidth: 18,
     height: 18,
-    borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: COLORS.white,
-    paddingHorizontal: 4,
+    borderColor: '#FFFFFF',
+    zIndex: 20,
   },
   badgeText: {
-    color: COLORS.white,
+    color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '900',
+    fontFamily: Platform.OS === 'web' ? 'Poppins, sans-serif' : 'Poppins_700Bold',
+  },
+  searchRow: {
+    marginTop: 12,
+    width: '100%',
+    zIndex: 5,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 48,
+    width: '100%',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1E293B',
+    marginLeft: 12,
+    padding: 0,
+    height: '100%',
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'web' ? 'Poppins, sans-serif' : 'Poppins_400Regular',
   },
 });

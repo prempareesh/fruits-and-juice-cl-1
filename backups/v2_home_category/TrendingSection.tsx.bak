@@ -1,0 +1,203 @@
+import React, { useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Image, 
+  Dimensions, 
+  Platform,
+  TouchableOpacity 
+} from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withTiming, 
+  Easing,
+  cancelAnimation
+} from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '@/src/theme/tokens';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const TRENDING_ITEMS = [
+  { id: '1', name: 'Mango Juice', image: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=200&q=80' },
+  { id: '2', name: 'Apple', image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6bcd6?w=200&q=80' },
+  { id: '3', name: 'Orange Juice', image: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=200&q=80' },
+  { id: '4', name: 'Carrot', image: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=200&q=80' },
+  { id: '5', name: 'Banana', image: 'https://images.unsplash.com/photo-1603833665858-e81b1c7e4660?w=200&q=80' },
+  { id: '6', name: 'Watermelon', image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=200&q=80' },
+  { id: '7', name: 'Tomato', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&q=80' },
+  { id: '8', name: 'Cucumber', image: 'https://images.unsplash.com/photo-1449339854873-750e6df51301?w=200&q=80' },
+];
+
+// Duplicate items for seamless loop
+const DATA = [...TRENDING_ITEMS, ...TRENDING_ITEMS];
+const ITEM_WIDTH = 100;
+const TOTAL_WIDTH = TRENDING_ITEMS.length * ITEM_WIDTH;
+
+const TrendingItem = ({ item }: { item: typeof DATA[0] }) => (
+  <View style={styles.itemContainer}>
+    <View style={styles.imageWrapper}>
+      <Image source={{ uri: item.image }} style={styles.image} />
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>Fresh</Text>
+      </View>
+    </View>
+    <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+  </View>
+);
+
+export const TrendingSection = ({ onSeeAll }: { onSeeAll?: () => void }) => {
+  const router = useRouter();
+  const translateX = useSharedValue(0);
+
+  useEffect(() => {
+    translateX.value = withRepeat(
+      withTiming(-TOTAL_WIDTH, {
+        duration: 25000, // Slow, premium speed
+        easing: Easing.linear,
+      }),
+      -1, // Infinite
+      false // Do not reverse
+    );
+
+    return () => cancelAnimation(translateX);
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>🔥 Trending Now</Text>
+          {onSeeAll && (
+            <TouchableOpacity 
+              style={styles.seeAll} 
+              onPress={onSeeAll}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.seeAllText}>See all</Text>
+              <ChevronRight size={14} color={COLORS.primaryGreen} strokeWidth={3} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <Text style={styles.subtitle}>Fresh picks people are loving today</Text>
+      </View>
+
+      <View style={styles.scrollWrapper} pointerEvents="none">
+        <Animated.View style={[styles.ticker, animatedStyle]}>
+          {DATA.map((item, index) => (
+            <View key={`${item.id}-${index}`}>
+              <TrendingItem item={item} />
+            </View>
+          ))}
+        </Animated.View>
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    paddingVertical: SPACING.lg,
+    backgroundColor: '#FFF',
+  },
+  header: {
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.dark,
+    letterSpacing: 0.2,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  seeAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primaryGreenLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    marginLeft: 'auto',
+  },
+  seeAllText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.primaryGreen,
+  },
+  scrollWrapper: {
+    overflow: 'hidden',
+    width: SCREEN_WIDTH,
+  },
+  ticker: {
+    flexDirection: 'row',
+    width: TOTAL_WIDTH * 2,
+  },
+  itemContainer: {
+    width: ITEM_WIDTH,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+  },
+  imageWrapper: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...SHADOWS.sm,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    position: 'relative',
+    marginBottom: 8,
+    overflow: 'visible',
+  },
+  image: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    resizeMode: 'cover',
+  },
+  badge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: COLORS.primaryGreen,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#FFF',
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 8,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  name: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+});

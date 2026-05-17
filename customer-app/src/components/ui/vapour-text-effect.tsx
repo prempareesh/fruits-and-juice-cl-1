@@ -406,7 +406,7 @@ export const IntroComponent = () => {
     return (
         <div style={{ backgroundColor: 'black', height: '100vh', width: '100vw', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <VaporizeTextCycle
-                texts={["JUICY SHOP", "Fresh", "Pure"]}
+                texts={["FRESH FLOW", "Fresh", "Pure"]}
                 font={{
                     fontFamily: "Calibri",
                     fontSize: "80px",

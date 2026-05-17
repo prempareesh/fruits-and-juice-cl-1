@@ -13,7 +13,8 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Order, Product } from '../../src/types';
-import { ChevronLeft, Download, MapPin, CreditCard, Calendar, Package, CheckCircle2, Clock, Truck, XCircle } from 'lucide-react-native';
+import { ChevronLeft, Download, MapPin, CreditCard, Calendar, Package, CheckCircle2, Clock, Truck, XCircle, Home } from 'lucide-react-native';
+import { COLORS } from '../../src/theme/colors';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../src/store/ThemeContext';
@@ -128,14 +129,17 @@ export default function OrderDetailsScreen() {
                 </tr>
               </thead>
               <tbody>
-                ${items.map(item => `
-                  <tr>
-                    <td>${item.products?.name || 'Unknown Product'}</td>
-                    <td>${item.quantity}</td>
-                    <td>₹${(item.price_at_time || 0).toFixed(2)}</td>
-                    <td>₹${(item.subtotal || 0).toFixed(2)}</td>
-                  </tr>
-                `).join('')}
+                ${items.map(item => {
+                  const variant = item.variant_id ? (item.variant_id === 'pure' || item.variant_id.includes('pure') ? 'Pure' : 'Classic') : '';
+                  return `
+                    <tr>
+                      <td>${item.products?.name || 'Unknown Product'}${variant ? ` (${variant})` : ''}</td>
+                      <td>${item.quantity}</td>
+                      <td>₹${(item.price_at_time || 0).toFixed(2)}</td>
+                      <td>₹${(item.subtotal || 0).toFixed(2)}</td>
+                    </tr>
+                  `;
+                }).join('')}
               </tbody>
             </table>
             <div class="total-section">
@@ -182,19 +186,19 @@ export default function OrderDetailsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.card }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.white }]}>
+      <View style={[styles.header, { backgroundColor: COLORS.white, borderBottomColor: COLORS.border }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <ChevronLeft size={24} color={theme.text} />
+          <ChevronLeft size={24} color={COLORS.dark} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Order Details</Text>
+        <Text style={[styles.headerTitle, { color: COLORS.dark }]}>Order Details</Text>
         {isDelivered ? (
           <TouchableOpacity 
             style={[styles.downloadBtn, downloading && { opacity: 0.5 }]} 
             onPress={generatePDF}
             disabled={downloading}
           >
-            {downloading ? <ActivityIndicator size={20} color={theme.primary} /> : <Download size={22} color={theme.primary} />}
+            {downloading ? <ActivityIndicator size={20} color={COLORS.primaryGreen} /> : <Download size={22} color={COLORS.primaryGreen} />}
           </TouchableOpacity>
         ) : <View style={{ width: 32 }} />}
       </View>
@@ -212,57 +216,68 @@ export default function OrderDetailsScreen() {
           />
         </Animated.View>
 
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 16 }]}>
+        <View style={[styles.card, { backgroundColor: COLORS.white, borderColor: COLORS.border, marginTop: 16 }]}>
           <View style={styles.orderMeta}>
             <View style={styles.metaItem}>
-              <Calendar size={16} color={theme.textSecondary} />
-              <Text style={[styles.metaText, { color: theme.textSecondary }]}>ID: #{order.id.slice(0, 8).toUpperCase()}</Text>
+              <Calendar size={16} color={COLORS.textSecondary} />
+              <Text style={[styles.metaText, { color: COLORS.textSecondary }]}>ID: #{order.id.slice(0, 8).toUpperCase()}</Text>
             </View>
             <View style={styles.metaItem}>
-              <CreditCard size={16} color={theme.textSecondary} />
-              <Text style={[styles.metaText, { color: theme.textSecondary }]}>{order.payment_type.toUpperCase()}</Text>
+              <CreditCard size={16} color={COLORS.textSecondary} />
+              <Text style={[styles.metaText, { color: COLORS.textSecondary }]}>{order.payment_type.toUpperCase()}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Clock size={16} color={theme.textSecondary} />
-              <Text style={[styles.metaText, { color: theme.textSecondary }]}>
+              <Clock size={16} color={COLORS.textSecondary} />
+              <Text style={[styles.metaText, { color: COLORS.textSecondary }]}>
                 {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
           </View>
         </View>
         {/* Items Section */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Items Ordered</Text>
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Text style={[styles.sectionTitle, { color: COLORS.textSecondary }]}>Items Ordered</Text>
+        <View style={[styles.card, { backgroundColor: COLORS.white, borderColor: COLORS.border }]}>
           {items.map((item, index) => (
             <View key={item.id}>
               <View style={styles.itemRow}>
                 <View style={styles.itemMain}>
-                  <Text style={[styles.itemName, { color: theme.text }]}>{item.products?.name}</Text>
-                  <Text style={[styles.itemSub, { color: theme.textSecondary }]}>Quantity: {item.quantity}</Text>
+                  <Text style={[styles.itemName, { color: COLORS.dark }]}>
+                    {item.products?.name}{item.variant_id ? ` (${item.variant_id === 'pure' || item.variant_id.includes('pure') ? 'Pure' : 'Classic'})` : ''}
+                  </Text>
+                  <Text style={[styles.itemSub, { color: COLORS.textSecondary }]}>Quantity: {item.quantity}</Text>
                 </View>
-                <Text style={[styles.itemPrice, { color: theme.text }]}>₹{(item.subtotal || 0).toFixed(2)}</Text>
+                <Text style={[styles.itemPrice, { color: COLORS.dark }]}>₹{(item.subtotal || 0).toFixed(2)}</Text>
               </View>
-              {index < items.length - 1 && <View style={[styles.divider, { backgroundColor: theme.divider }]} />}
+              {index < items.length - 1 && <View style={[styles.divider, { backgroundColor: COLORS.divider }]} />}
             </View>
           ))}
-          <View style={[styles.divider, { backgroundColor: theme.divider, marginTop: 12 }]} />
+          <View style={[styles.divider, { backgroundColor: COLORS.divider, marginTop: 12 }]} />
           <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: theme.text }]}>Total Amount</Text>
-            <Text style={[styles.totalValue, { color: theme.primary }]}>₹{(order.total_amount || 0).toFixed(2)}</Text>
+            <Text style={[styles.totalLabel, { color: COLORS.dark }]}>Total Amount</Text>
+            <Text style={[styles.totalValue, { color: COLORS.primaryGreen }]}>₹{(order.total_amount || 0).toFixed(2)}</Text>
           </View>
         </View>
 
         {/* Shipping Section */}
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Shipping Information</Text>
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Text style={[styles.sectionTitle, { color: COLORS.textSecondary }]}>Shipping Information</Text>
+        <View style={[styles.card, { backgroundColor: COLORS.white, borderColor: COLORS.border }]}>
           <View style={styles.addressRow}>
-            <MapPin size={20} color={theme.primary} />
+            <MapPin size={20} color={COLORS.primaryGreen} />
             <View style={styles.addressInfo}>
-              <Text style={[styles.addressLabel, { color: theme.text }]}>Delivery Address</Text>
-              <Text style={[styles.addressText, { color: theme.textSecondary }]}>{order.address}</Text>
+              <Text style={[styles.addressLabel, { color: COLORS.dark }]}>Delivery Address</Text>
+              <Text style={[styles.addressText, { color: COLORS.textSecondary }]}>{order.address}</Text>
             </View>
           </View>
         </View>
+
+        {/* Back to Home Button */}
+        <TouchableOpacity 
+          style={styles.homeBtn} 
+          onPress={() => router.replace('/(tabs)')}
+        >
+          <Home size={20} color="#FFF" />
+          <Text style={styles.homeBtnText}>Back to Home</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -316,4 +331,25 @@ const styles = StyleSheet.create({
   addressInfo: { marginLeft: 12, flex: 1 },
   addressLabel: { fontSize: 14, fontWeight: 'bold', marginBottom: 4 },
   addressText: { fontSize: 14, lineHeight: 20 },
+  homeBtn: {
+    backgroundColor: COLORS.primaryGreen,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginTop: 10,
+    marginBottom: 40,
+    shadowColor: COLORS.primaryGreen,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  homeBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });

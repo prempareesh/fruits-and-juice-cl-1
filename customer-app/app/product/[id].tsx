@@ -1,5 +1,4 @@
-import * as React from 'react';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -15,568 +14,442 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { Product, JuiceVariant } from '../../src/types';
-import { ChevronLeft, ShoppingBag, Plus, Minus, ShieldCheck, Clock, Star, Info, Leaf } from 'lucide-react-native';
-import { useCartStore } from '../../src/store/useCartStore';
+import { Product } from '../../src/types';
+import { SafeProductImage } from '../../src/components/ui/PremiumCard';
+import { ChevronLeft, ShoppingBag, ShieldCheck, Clock, Leaf, Plus, Minus } from 'lucide-react-native';
+import { useCartStore } from '@/src/store/useCartStore';
 import { ProductService } from '../../src/services/ProductService';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { Toast, ToastHandle } from '../../src/components/ui/Toast';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '../../src/theme/tokens';
+import { Check, Info } from 'lucide-react-native';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+type VariantType = 'normal' | 'very_pure';
+
+interface DisplayVariant {
+  id: string;
+  type: VariantType;
+  label: string;
+  description: string;
+}
+
+const VARIANTS: DisplayVariant[] = [
+  { 
+    id: 'classic', 
+    type: 'normal', 
+    label: 'Classic Juice', 
+    description: 'Freshly squeezed fruit juice with minimal processing.' 
+  },
+  { 
+    id: 'pure', 
+    type: 'very_pure', 
+    label: 'Pure Juice', 
+    description: '100% Cold-pressed, no added sugar or water. 2x Concentration.' 
+  }
+];
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams();
   const [product, setProduct] = useState<Product | null>(null);
-  const [variants, setVariants] = useState<JuiceVariant[]>([]);
-  const [selectedVariant, setSelectedVariant] = useState<JuiceVariant | null>(null);
-  const [weight, setWeight] = useState(1);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
+  const removeItem = useCartStore((state) => state.removeItem);
+  const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const items = useCartStore((state) => state.items);
   const insets = useSafeAreaInsets();
-  const toastRef = React.useRef<ToastHandle>(null);
+  
+  const [selectedVariant, setSelectedVariant] = useState<DisplayVariant>(VARIANTS[0]);
 
-  const cartScale = useSharedValue(1);
+  const isJuice = useMemo(() => 
+    product?.category?.toLowerCase()?.includes('juice') ?? false
+  , [product?.category]);
+
+  const currentVariant = useMemo(() => 
+    isJuice ? { id: selectedVariant.id, variant_type: selectedVariant.type } : undefined
+  , [isJuice, selectedVariant]);
+
+  const { price, mrp, discountPercent } = useMemo(() => {
+    const p = ProductService.getPrice(product, currentVariant);
+    const basePrice = (product?.selling_price || product?.price || 70);
+    const m = product?.original_price || product?.mrp || (basePrice * (selectedVariant.type === 'very_pure' ? 2 : 1) + 20);
+    const d = m > p ? Math.round(((m - p) / m) * 100) : 0;
+    return { price: p, mrp: m, discountPercent: d };
+  }, [product, currentVariant, selectedVariant.type]);
+  
+  const cartItem = useMemo(() => 
+    items.find(i => 
+      isJuice 
+        ? i.productId === id && i.variantName === selectedVariant.type
+        : i.productId === id
+    )
+  , [items, isJuice, id, selectedVariant.type]);
 
   useEffect(() => {
-    fetchProductDetails();
+    if (id) fetchProductDetails();
   }, [id]);
 
   async function fetchProductDetails() {
     try {
-      const { data: prodData, error: prodError } = await supabase
+      const { data, error } = await supabase
         .from('products')
         .select('*')
         .eq('id', id)
         .single();
-
-      if (prodError) throw prodError;
-      setProduct(prodData);
-
-      if (prodData.category === 'juice') {
-        const { data: varData, error: varError } = await supabase
-          .from('juice_variants')
-          .select('*')
-          .eq('product_id', id);
-        
-        if (varError) throw varError;
-        setVariants(varData);
-        setSelectedVariant(varData.find((v: JuiceVariant) => v.variant_type === 'normal') || varData[0]);
-      }
-    } catch (error) {
-      console.error('Error fetching details:', error);
+      if (error) throw error;
+      setProduct(data);
+    } catch (err) {
+      console.error('[ProductDetail] Fetch failed:', err);
     } finally {
       setLoading(false);
     }
   }
 
-  const handleAddToCart = () => {
-    if (product) {
-      cartScale.value = withSpring(1.2, {}, () => {
-        cartScale.value = withSpring(1);
-      });
-      addItem(product, isJuice ? selectedVariant! : undefined, isJuice ? 1 : weight);
-      toastRef.current?.show('Added to your basket! 🧺', 'success');
-      setTimeout(() => router.push('/(tabs)/cart'), 800);
-    }
-  };
-
-  const animatedCartStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: cartScale.value }]
-  }));
-
-  if (loading || !product) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FF7700" />
-      </View>
-    );
-  }
-
-  const isJuice = product.category === 'juice';
-  const currentPrice = ProductService.getPrice(product, isJuice ? selectedVariant! : undefined) * (isJuice ? 1 : weight);
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primaryGreen} /></View>;
+  if (!product) return <View style={styles.center}><Text>Product not found</Text></View>;
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <Toast ref={toastRef} />
-      <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-        <View style={styles.imageContainer}>
-          <Image 
-            source={{ uri: product.image_url || (product.category === 'fruit' 
-              ? 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&q=80&w=800' 
-              : 'https://images.unsplash.com/photo-1622597467827-4309112bba21?auto=format&fit=crop&q=80&w=800') }} 
+      <StatusBar barStyle="dark-content" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Mobile Header Image */}
+        <View style={styles.imageWrapper}>
+          <SafeProductImage
+            name={product.name}
+            category={product.category || ''}
+            imageUrl={ProductService.getOptimizedImage(product.image_url, 420)}
             style={styles.mainImage}
           />
-          <LinearGradient
-            colors={['rgba(0,0,0,0.5)', 'transparent']}
-            style={styles.imageHeaderGradient}
-          />
           <TouchableOpacity 
-            style={[styles.backButton, { top: Math.max(insets.top + 10, 20) }]} 
+            style={[styles.backBtn, { top: Math.max(insets.top, 20) }]} 
             onPress={() => router.back()}
           >
-            <ChevronLeft size={24} color="#FFFFFF" />
+            <ChevronLeft size={24} color="#0F172A" />
           </TouchableOpacity>
+
+          {discountPercent > 0 && (
+            <View style={[styles.detailDiscountBadge, { top: Math.max(insets.top, 20) }]}>
+              <Text style={styles.detailDiscountText}>{discountPercent}% OFF</Text>
+            </View>
+          )}
         </View>
-        
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.content}>
-          <View style={styles.headerInfo}>
-            <View style={[styles.categoryBadge, { backgroundColor: isJuice ? '#e0f2fe' : '#f0fdf4' }]}>
-              <Text style={[styles.categoryText, { color: isJuice ? '#0369a1' : '#15803d' }]}>
-                {product.category.toUpperCase()}
-              </Text>
-            </View>
-            <View style={styles.ratingBox}>
-              <Star size={14} color="#f59e0b" fill="#f59e0b" />
-              <Text style={styles.ratingText}>4.8</Text>
-            </View>
-          </View>
-          
-          <Text style={styles.name}>{product.name}</Text>
-          <Text style={styles.description}>{product.description}</Text>
 
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <View style={styles.statIconContainer}>
-                <Clock size={18} color="#FF7700" />
-              </View>
-              <Text style={styles.statValue}>20-30</Text>
-              <Text style={styles.statLabel}>min</Text>
+        {/* Product Details Area */}
+        <View style={styles.infoArea}>
+          <View style={styles.titleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.productName}>{product.name}</Text>
+              <Text style={styles.categoryName}>{product.category}</Text>
             </View>
-            <View style={styles.statItem}>
-              <View style={styles.statIconContainer}>
-                <Leaf size={18} color="#10b981" />
-              </View>
-              <Text style={styles.statValue}>100%</Text>
-              <Text style={styles.statLabel}>Organic</Text>
-            </View>
-            <View style={styles.statItem}>
-              <View style={styles.statIconContainer}>
-                <Info size={18} color="#3b82f6" />
-              </View>
-              <Text style={styles.statValue}>Fresh</Text>
-              <Text style={styles.statLabel}>Picked</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>New</Text>
             </View>
           </View>
 
-          {isJuice ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Choose Quality</Text>
-              <View style={styles.variantContainer}>
-                {variants.map((v) => (
-                  <TouchableOpacity 
-                    key={v.id}
-                    activeOpacity={0.8}
-                    style={[
-                      styles.variantCard, 
-                      selectedVariant?.id === v.id && styles.selectedVariant
-                    ]}
-                    onPress={() => setSelectedVariant(v)}
-                  >
-                    <View style={styles.variantHeader}>
-                      <Text style={[
-                        styles.variantName,
-                        selectedVariant?.id === v.id && styles.selectedVariantText
-                      ]}>
-                        {v.variant_type === 'very_pure' ? 'Super Pure' : 'Classic'}
-                      </Text>
-                      {v.stock_units <= 0 && (
-                        <View style={styles.outOfStockBadgeSmall}>
-                          <Text style={styles.outOfStockTextSmall}>Out of Stock</Text>
-                        </View>
-                      )}
-                      {v.variant_type === 'very_pure' && v.stock_units > 0 && <ShieldCheck size={16} color={selectedVariant?.id === v.id ? '#FFFFFF' : '#FF7700'} />}
-                    </View>
-                    <Text style={[
-                      styles.variantPrice,
-                      selectedVariant?.id === v.id && styles.selectedVariantText
-                    ]}>
-                      {ProductService.formatPrice(v.price)}
-                    </Text>
-                    <Text style={[
-                      styles.variantSize,
-                      selectedVariant?.id === v.id && styles.selectedVariantText
-                    ]}>
-                      {v.ml}ml Glass Bottle
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          ) : (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Select Weight</Text>
-              <View style={styles.stepperContainer}>
-                <TouchableOpacity 
-                  style={styles.stepperButton} 
-                  onPress={() => setWeight(Math.max(1, weight - 1))}
-                >
-                  <Minus size={22} color="#1e293b" />
-                </TouchableOpacity>
-                <View style={styles.weightDisplay}>
-                  <Text style={styles.weightText}>{weight}</Text>
-                  <Text style={styles.weightUnit}>kg</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceText}>₹{Math.round(price)}</Text>
+            {mrp > price && (
+              <View style={styles.mrpContainer}>
+                <Text style={styles.mrpText}>₹{Math.round(mrp)}</Text>
+                <View style={styles.discountTag}>
+                  <Text style={styles.discountTagText}>SAVE {discountPercent}%</Text>
                 </View>
-                <TouchableOpacity 
-                  style={styles.stepperButton} 
-                  onPress={() => setWeight(Math.min(product.stock_kg || 0, weight + 1))}
-                >
-                  <Plus size={22} color="#1e293b" />
-                </TouchableOpacity>
               </View>
-              <Text style={styles.priceHint}>Approx {ProductService.formatPrice(product.price_per_kg || 0)} per kg</Text>
+            )}
+          </View>
+
+          <View style={styles.divider} />
+
+          <Text style={styles.sectionLabel}>About Product</Text>
+          <Text style={styles.descriptionText}>
+            {product.description || 'Premium quality product sourced daily to ensure maximum freshness and taste.'}
+          </Text>
+
+          {/* Variant Selection (Juice Only) */}
+          {isJuice && (
+            <View style={styles.variantSection}>
+              <View style={styles.variantHeader}>
+                <Text style={styles.sectionLabel}>Choose Variant</Text>
+                <View style={styles.requiredBadge}>
+                  <Text style={styles.requiredText}>Required</Text>
+                </View>
+              </View>
+              <Text style={styles.variantSublabel}>Select your preferred concentration</Text>
+
+              <View style={styles.variantList}>
+                {VARIANTS.map((v) => {
+                  const isSelected = selectedVariant.id === v.id;
+                  const vPrice = ProductService.getPrice(product, { variant_type: v.type });
+                  
+                  return (
+                    <TouchableOpacity 
+                      key={v.id}
+                      style={[
+                        styles.variantCard,
+                        isSelected && styles.variantCardSelected
+                      ]}
+                      onPress={() => setSelectedVariant(v)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.variantInfo}>
+                        <View style={styles.variantTitleRow}>
+                          <Text style={[styles.variantLabel, isSelected && styles.variantLabelSelected]}>{v.label}</Text>
+                          {isSelected && <Check size={16} color={COLORS.primaryGreen} strokeWidth={3} />}
+                        </View>
+                        <Text style={styles.variantDesc} numberOfLines={2}>{v.description}</Text>
+                        <Text style={[styles.variantPrice, isSelected && styles.variantPriceSelected]}>
+                          {ProductService.formatPrice(vPrice)}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           )}
 
-          <View style={styles.spacer} />
-        </Animated.View>
+          <View style={styles.features}>
+            <View style={styles.featureItem}>
+              <Clock size={16} color={COLORS.primaryGreen} />
+              <Text style={styles.featureText}>15 Mins</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <Leaf size={16} color={COLORS.primaryGreen} />
+              <Text style={styles.featureText}>Organic</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <ShieldCheck size={16} color={COLORS.primaryGreen} />
+              <Text style={styles.featureText}>Verified</Text>
+            </View>
+          </View>
+        </View>
       </ScrollView>
 
-      <View style={styles.footer}>
-        <View>
-          <Text style={styles.totalLabel}>Grand Total</Text>
-          <Text style={styles.totalPrice}>{ProductService.formatPrice(currentPrice)}</Text>
+      {/* Floating Bottom Action Bar */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <View style={styles.priceInfo}>
+          <Text style={styles.totalLabel}>Price</Text>
+          <Text style={styles.totalValue}>₹{Math.round(price)}</Text>
         </View>
-        <TouchableOpacity 
-          activeOpacity={0.9} 
-          style={styles.cartButtonContainer} 
-          onPress={handleAddToCart}
-          disabled={isJuice ? (selectedVariant?.stock_units || 0) <= 0 : (product.stock_kg || 0) <= 0}
-        >
-          <Animated.View style={[
-            styles.cartButton, 
-            animatedCartStyle,
-            (isJuice ? (selectedVariant?.stock_units || 0) <= 0 : (product.stock_kg || 0) <= 0) && styles.disabledButton
-          ]}>
-            <LinearGradient
-              colors={ (isJuice ? (selectedVariant?.stock_units || 0) <= 0 : (product.stock_kg || 0) <= 0) 
-                ? ['#94a3b8', '#64748b'] 
-                : ['#FF9900', '#FF6600']
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradient}
+        {cartItem && cartItem.quantity > 0 ? (
+          <View style={styles.stepperContainer}>
+            <TouchableOpacity 
+              style={styles.stepBtn} 
+              onPress={() => removeItem(cartItem.id)}
             >
-              <ShoppingBag size={20} color="#FFFFFF" style={styles.cartIcon} />
-              <Text style={styles.cartButtonText}>
-                {(isJuice ? (selectedVariant?.stock_units || 0) <= 0 : (product.stock_kg || 0) <= 0) 
-                  ? 'Out of Stock' 
-                  : 'Add to Cart'}
-              </Text>
-            </LinearGradient>
-          </Animated.View>
-        </TouchableOpacity>
+              <Minus size={20} color="#FFF" strokeWidth={3} />
+            </TouchableOpacity>
+            
+            <View style={styles.qtyDisplay}>
+              <Text style={styles.qtyCount}>{cartItem.quantity}</Text>
+              <Text style={styles.qtyUnit}>in basket</Text>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.stepBtn, cartItem.quantity >= (product.stock || 0) && styles.stepBtnDisabled]} 
+              onPress={() => updateQuantity(cartItem.id, cartItem.quantity + 1)}
+              disabled={cartItem.quantity >= (product.stock || 0)}
+            >
+              <Plus size={20} color="#FFF" strokeWidth={3} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.addBtn, (product.stock || 0) <= 0 && styles.addBtnDisabled]}
+            onPress={() => addItem(product, isJuice ? { id: selectedVariant.id, variant_type: selectedVariant.type } as any : undefined)}
+            disabled={(product.stock || 0) <= 0}
+          >
+            <ShoppingBag size={20} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.addBtnText}>
+              {(product.stock || 0) <= 0 ? 'Out of Stock' : 'Add to Basket'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  center: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { paddingBottom: 120 },
+  imageWrapper: {
+    width: 368,
+    height: 368,
+    alignSelf: 'center',
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  imageContainer: {
-    width: width,
-    height: Dimensions.get('window').height * 0.45,
-    backgroundColor: '#f8fafc',
-  },
-  mainImage: {
-    width: width,
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  imageHeaderGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120,
-  },
-  backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    left: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  content: {
-    flex: 1,
-    padding: 28,
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    backgroundColor: '#FFFFFF',
-    marginTop: -40,
-  },
-  headerInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  categoryBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  categoryText: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  ratingBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fffbeb',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-  },
-  ratingText: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 14,
-    color: '#92400e',
-    marginLeft: 6,
-  },
-  name: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 32,
-    color: '#1e293b',
-  },
-  description: {
-    fontFamily: 'Calibri',
-    fontSize: 15,
-    color: '#64748b',
-    marginTop: 12,
-    lineHeight: 24,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 32,
-    marginBottom: 32,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#f8fafc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  statValue: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 16,
-    color: '#1e293b',
-  },
-  statLabel: {
-    fontFamily: 'Calibri',
-    fontSize: 12,
-    color: '#94a3b8',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 18,
-    color: '#1e293b',
-    marginBottom: 18,
-  },
-  variantContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  variantCard: {
-    width: '48%',
-    padding: 18,
+    position: 'relative',
     borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#f1f5f9',
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  mainImage: { 
+    width: 368, 
+    height: 368 
+  },
+  backBtn: {
+    position: 'absolute',
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 10,
-    elevation: 1,
-  },
-  selectedVariant: {
-    borderColor: '#FF7700',
-    backgroundColor: '#fff7ed',
-  },
-  variantHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  variantName: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 15,
-    color: '#64748b',
-  },
-  variantPrice: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 22,
-    color: '#1e293b',
-    marginVertical: 4,
-  },
-  variantSize: {
-    fontFamily: 'Calibri',
-    fontSize: 12,
-    color: '#94a3b8',
-  },
-  selectedVariantText: {
-    color: '#FF7700',
-  },
-  stepperContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f8fafc',
-    borderRadius: 24,
-    padding: 10,
-    width: 200,
-  },
-  stepperButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
-    elevation: 3,
   },
-  weightDisplay: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  weightText: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 28,
-    color: '#1e293b',
-  },
-  weightUnit: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 16,
-    color: '#64748b',
-    marginLeft: 4,
-  },
-  priceHint: {
-    fontFamily: 'Calibri',
-    fontSize: 14,
-    color: '#94a3b8',
-    marginTop: 14,
-    marginLeft: 4,
-  },
-  spacer: {
-    height: 120,
-  },
-  footer: {
+  infoArea: { padding: 20 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  productName: { fontSize: 24, fontWeight: '900', color: '#0F172A' },
+  categoryName: { fontSize: 14, color: COLORS.primaryGreen, fontWeight: '700', marginTop: 4 },
+  badge: { backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  badgeText: { fontSize: 10, fontWeight: '800', color: '#475569', textTransform: 'uppercase' },
+  priceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 10 },
+  priceText: { fontSize: 28, fontWeight: '900', color: '#0F172A' },
+  mrpText: { fontSize: 16, color: '#94A3B8', textDecorationLine: 'line-through' },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 20 },
+  sectionLabel: { fontSize: 16, fontWeight: '800', color: '#1E293B', marginBottom: 8 },
+  descriptionText: { fontSize: 14, color: '#64748B', lineHeight: 22 },
+  features: { flexDirection: 'row', marginTop: 24, gap: 12 },
+  featureItem: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F0FDF4', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
+  featureText: { fontSize: 12, fontWeight: '700', color: COLORS.primaryGreen },
+  bottomBar: {
     position: 'absolute',
     bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 45 : 30,
+    width: '100%',
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  totalLabel: {
-    fontFamily: 'Calibri',
-    fontSize: 13,
-    color: '#94a3b8',
-  },
-  totalPrice: {
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 26,
-    color: '#1e293b',
-  },
-  cartButtonContainer: {
-    flex: 1,
-    marginLeft: 24,
-  },
-  cartButton: {
-    borderRadius: 22,
-    overflow: 'hidden',
-    elevation: 8,
-    shadowColor: '#FF7700',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 15,
-  },
-  gradient: {
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  priceInfo: { flex: 1 },
+  totalLabel: { fontSize: 12, color: '#94A3B8', fontWeight: '600' },
+  totalValue: { fontSize: 22, fontWeight: '900', color: '#0F172A' },
+  addBtn: {
+    flex: 2,
+    backgroundColor: COLORS.primaryGreen,
+    flexDirection: 'row',
+    height: 54,
+    borderRadius: 14,
     justifyContent: 'center',
-    paddingVertical: 18,
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: COLORS.primaryGreen,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
-  cartIcon: {
-    marginRight: 12,
+  addBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  variantSection: { marginTop: 24 },
+  variantHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  requiredBadge: { backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  requiredText: { fontSize: 9, fontWeight: '800', color: '#EF4444', textTransform: 'uppercase' },
+  variantSublabel: { fontSize: 12, color: '#64748B', marginBottom: 16 },
+  variantList: { gap: 12 },
+  variantCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
   },
-  cartButtonText: {
-    color: '#FFFFFF',
-    fontFamily: 'Calibri',
-    fontWeight: '700',
-    fontSize: 17,
+  variantCardSelected: {
+    borderColor: COLORS.primaryGreen,
+    backgroundColor: '#F0FDF4',
   },
-  disabledButton: {
+  variantInfo: { flex: 1 },
+  variantTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  variantLabel: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+  variantLabelSelected: { color: COLORS.primaryGreen },
+  variantDesc: { fontSize: 12, color: '#64748B', marginTop: 4, lineHeight: 18 },
+  variantPrice: { fontSize: 15, fontWeight: '800', color: '#0F172A', marginTop: 8 },
+  variantPriceSelected: { color: COLORS.primaryGreen },
+  detailDiscountBadge: {
+    position: 'absolute',
+    right: 16,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    elevation: 4,
+    shadowColor: '#EF4444',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  detailDiscountText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  mrpContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  discountTag: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.primaryGreen,
+  },
+  discountTagText: {
+    color: COLORS.primaryGreen,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  addBtnDisabled: {
+    backgroundColor: '#94A3B8',
     shadowOpacity: 0,
     elevation: 0,
   },
-  outOfStockBadgeSmall: {
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+  stepperContainer: {
+    flex: 2,
+    flexDirection: 'row',
+    height: 54,
+    backgroundColor: COLORS.primaryGreen,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    elevation: 4,
+    shadowColor: COLORS.primaryGreen,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
-  outOfStockTextSmall: {
-    color: '#ef4444',
-    fontSize: 10,
-    fontFamily: 'Calibri',
+  stepBtn: {
+    width: 46,
+    height: 46,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  stepBtnDisabled: {
+    opacity: 0.5,
+  },
+  qtyDisplay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyCount: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  qtyUnit: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 9,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: -2,
   },
 });

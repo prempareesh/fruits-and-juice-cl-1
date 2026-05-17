@@ -105,30 +105,25 @@ https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
         // Send to Admin
         if (whatsappAdminPhone) {
             try {
-                let adminRaw = whatsappAdminPhone ? whatsappAdminPhone.toString() : '';
-                let adminFormatted = adminRaw.replace(/\D/g, '');
+                let adminRaw = whatsappAdminPhone.toString().trim();
+                let adminFormatted = adminRaw;
                 
-                if (adminFormatted.length === 10) {
-                    adminFormatted = `+91${adminFormatted}`;
-                } else if (adminRaw && !adminRaw.startsWith('+')) {
-                    adminFormatted = `+${adminFormatted}`;
-                } else {
-                    adminFormatted = adminRaw;
+                if (!adminFormatted.startsWith('+')) {
+                    adminFormatted = `+${adminFormatted.replace(/\D/g, '')}`;
+                    if (adminFormatted.length === 11) adminFormatted = `+91${adminFormatted.slice(1)}`;
                 }
 
-                if (adminFormatted) {
-                  const toAdmin = `whatsapp:${adminFormatted}`;
-                  console.log(`[Twilio] ATTEMPTING ADMIN WHATSAPP -> To: ${toAdmin}, From: ${whatsappFrom}`);
+                const toAdmin = `whatsapp:${adminFormatted}`;
+                console.log(`[Twilio_Debug] SENDING TO ADMIN: ${toAdmin} | FROM: ${whatsappFrom}`);
 
-                  whatsappResponse = await client.messages.create({
-                      body: message,
-                      from: whatsappFrom,
-                      to: toAdmin
-                  });
-                  console.log(`[Twilio] SUCCESS! Admin WhatsApp SID: ${whatsappResponse.sid}`);
-                }
+                whatsappResponse = await client.messages.create({
+                    body: message,
+                    from: whatsappFrom,
+                    to: toAdmin
+                });
+                console.log(`[Twilio_Success] Admin WhatsApp SID: ${whatsappResponse.sid}`);
             } catch (err) {
-                console.error('[Twilio] ERROR sending to admin:', err.message);
+                console.error('[Twilio_Failure] Admin WhatsApp Error:', err.message);
             }
         }
 
