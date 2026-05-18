@@ -53,13 +53,16 @@ exports.sendOrderNotification = async (req, res) => {
       createdAt 
     } = orderData;
 
-    // Build the exact message format requested by the user
+    // Format dynamic items list
+    const itemsList = items.map(item => `• ${item.name} (${item.quantity}x) - ₹${item.price}`).join('\n');
+
+    // Build the exact message format in the premium structure requested by the user
     const message = `
-🧾 *NEW ORDER RECEIPT*
----------------------------------
+## 🧾 *NEW ORDER RECEIPT*
+
 🆔 *Order ID:* #${id.slice(0, 8).toUpperCase()}
-⏰ *Time:* ${new Date(createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
----------------------------------
+⏰ *Time:* ${new Date(createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true }).toLowerCase()}
+-------------------------------
 
 👤 *CUSTOMER DETAILS:*
 • *Name:* ${customerName}
@@ -70,7 +73,7 @@ exports.sendOrderNotification = async (req, res) => {
 • *Landmark:* ${landmark || 'Not specified'}
 
 🛒 *ORDERED ITEMS:*
-${items.map((item, index) => `• ${item.name} (${item.quantity}x) - ₹${item.price}`).join('\n')}
+${itemsList}
 
 💰 *FINANCIAL SUMMARY:*
 • *Subtotal:* ₹${total}
@@ -82,7 +85,8 @@ ${items.map((item, index) => `• ${item.name} (${item.quantity}x) - ₹${item.p
 
 ${latitude && longitude && latitude !== 0 ? `🗺️ *NAVIGATE:*
 https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
----------------------------------
+
+---
 `.trim();
 
     // 1. SEND SMS (Wrapped in try-catch)

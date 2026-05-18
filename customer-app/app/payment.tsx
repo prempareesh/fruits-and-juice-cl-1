@@ -123,6 +123,7 @@ export default function PaymentScreen() {
   const [paymentState, setPaymentState] = useState<PaymentState>('IDLE');
   const [preloading, setPreloading] = useState(true);
   const [saveError, setSaveError] = useState<{ msg: string; data: any } | null>(null);
+  const [cachedUserId, setCachedUserId] = useState<string | null>(null);
 
   // Compute checkout variables — always, not conditionally
   const resolvedKey = useMemo(
@@ -215,6 +216,24 @@ export default function PaymentScreen() {
 
   useEffect(() => {
     preloadOrder();
+
+    // Pre-emptively fetch user ID and refresh token if close to expiration
+    // to hot-cache auth states and prevent database JWT refresh locks during checkout.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setCachedUserId(session.user.id);
+        console.log('[Auth_Pre-fetch] Active cached user resolved:', session.user.id);
+        if (session.expires_in < 600) { // Less than 10 minutes
+          supabase.auth.refreshSession().then(() => {
+            console.log('[Auth_Pre-fetch] Token refreshed successfully.');
+          }).catch(err => {
+            console.warn('[Auth_Pre-fetch] Session refresh warning:', err.message);
+          });
+        }
+      }
+    }).catch(err => {
+      console.warn('[Auth_Pre-fetch] Session retrieval warning:', err.message);
+    });
   }, [amount]);
 
   // Web message listener
@@ -274,7 +293,7 @@ export default function PaymentScreen() {
     setSaveError(null);
 
     try {
-      const uId = (params.userId as string) || (await supabase.auth.getSession()).data.session?.user?.id;
+      const uId = (params.userId as string) || cachedUserId || (await supabase.auth.getSession()).data.session?.user?.id;
       if (!uId) throw new Error('User session expired. Please login again.');
 
       // Fire-and-forget payment verification request to the backend in the background.
