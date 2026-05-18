@@ -149,7 +149,7 @@ export default function CartScreen() {
         router.replace({ pathname: '/success', params: { orderId } } as any);
         setTimeout(() => {
           clearCart();
-        }, 100);
+        }, 800);
       }
     } catch (err: any) {
       console.error('[Cart_Order_Error]', err);

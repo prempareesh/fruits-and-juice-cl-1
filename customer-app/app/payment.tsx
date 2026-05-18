@@ -51,6 +51,7 @@ export default function PaymentScreen() {
   // All hooks at the top — never after conditional returns
   const webViewRef = useRef<any>(null);
   const iframeRef = useRef<any>(null);
+  const isFinalizingRef = useRef<boolean>(false);
 
   const handleWebViewNavigation = (request: any) => {
     const { url } = request;
@@ -288,7 +289,13 @@ export default function PaymentScreen() {
   };
 
   const finalizeOrder = async (razorpayData: any) => {
-    if (paymentState === 'VERIFYING_PAYMENT' || paymentState === 'PAYMENT_SUCCESS') return;
+    // 1. Strict synchronous concurrency guard to block duplicate events/threads from running in parallel
+    if (isFinalizingRef.current) {
+      console.log('[Payment] Blocked duplicate finalizeOrder execution thread.');
+      return;
+    }
+    isFinalizingRef.current = true;
+
     setPaymentState('VERIFYING_PAYMENT');
     setSaveError(null);
 
@@ -312,9 +319,9 @@ export default function PaymentScreen() {
         console.warn('[Payment] Background verification logged with warning:', e.message);
       });
 
-      // Save order to the database instantly with a resilient 25-second safety timeout
-      // to ensure the user is never stuck forever on the verification screen due to database/network locks.
-      const orderPlacementPromise = placeOrder(
+      // 2. Direct, reliable order placement. We completely remove the forced 8s/25s timeout 
+      // to let the Supabase RPC complete normally on slower cellular networks, preventing any false negatives.
+      const dbOrderId = await placeOrder(
         uId,
         String(address || 'Online Order'),
         'online',
@@ -327,12 +334,6 @@ export default function PaymentScreen() {
         String(name || 'Customer'),
         String(contact || '')
       );
-
-      const timeoutPromise = new Promise<null>((_, reject) =>
-        setTimeout(() => reject(new Error('Order creation timed out. Please click below to complete.')), 25000)
-      );
-
-      const dbOrderId = await Promise.race([orderPlacementPromise, timeoutPromise]);
 
       if (!dbOrderId) throw new Error('Payment verified, but failed to save order to database. Please contact support.');
 
@@ -351,15 +352,18 @@ export default function PaymentScreen() {
       });
 
       setPaymentState('PAYMENT_SUCCESS');
-      clearCart();
 
-      // Defer navigation slightly (300ms) to allow React to mount the checkmark animation,
-      // unmount the WebView safely, and complete the transition smoothly without race conditions.
+      // 3. Defer both screen replacement and cart-clearing (800ms) to allow the success transition 
+      // to complete cleanly, preventing the underlying Cart screen from showing "Basket Empty" during transition.
       setTimeout(() => {
         router.replace(`/success?orderId=${dbOrderId}` as any);
+        setTimeout(() => {
+          clearCart();
+        }, 500);
       }, 300);
     } catch (err: any) {
       console.error('[Payment] Finalize failed:', err.message);
+      isFinalizingRef.current = false; // Reset on failure to allow retry if needed
       setPaymentState('PAYMENT_FAILED');
       setSaveError({ msg: err.message, data: razorpayData });
     }
