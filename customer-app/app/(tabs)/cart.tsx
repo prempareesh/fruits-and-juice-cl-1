@@ -145,11 +145,11 @@ export default function CartScreen() {
       );
 
       if (orderId) {
-        clearCart();
         Toast.show({ type: 'success', text1: 'Order Placed Successfully!' });
+        router.replace({ pathname: '/success', params: { orderId } } as any);
         setTimeout(() => {
-          router.replace({ pathname: '/success', params: { orderId } } as any);
-        }, 1500);
+          clearCart();
+        }, 100);
       }
     } catch (err: any) {
       console.error('[Cart_Order_Error]', err);

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Text,
   Platform,
+  Linking,
 } from 'react-native';
 import axios from 'axios';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -23,7 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 // Conditionally import WebView — not available on web
 const WebView = Platform.OS !== 'web' ? require('react-native-webview').WebView : null;
 
-const BASE_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://juice-app-9uzq.onrender.com';
+const BASE_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://freshflow-backend-x29k.onrender.com';
 const BACKEND_URL = BASE_API_URL.endsWith('/api/payment')
   ? BASE_API_URL
   : `${BASE_API_URL}/api/payment`;
@@ -49,6 +50,72 @@ export default function PaymentScreen() {
   // All hooks at the top — never after conditional returns
   const webViewRef = useRef<any>(null);
   const iframeRef = useRef<any>(null);
+
+  const handleWebViewNavigation = (request: any) => {
+    const { url } = request;
+    console.log('[WebView Navigation] Requesting URL:', url);
+
+    // Deep link schemes that we must open externally
+    const allowedSchemes = ['http://', 'https://', 'about:blank', 'data:'];
+    const isAllowed = allowedSchemes.some(scheme => url.startsWith(scheme));
+
+    if (!isAllowed) {
+      console.log('[WebView Navigation] Intercepting deep link / custom scheme:', url);
+
+      // Intent parsing logic for Android
+      if (url.startsWith('intent://')) {
+        console.log('[WebView Intent Parser] Parsing intent URL:', url);
+        try {
+          const schemeMatch = url.match(/scheme=([^;]+)/);
+          const scheme = schemeMatch ? schemeMatch[1] : null;
+
+          if (scheme) {
+            let parsedUrl = url.replace('intent://', `${scheme}://`);
+            const intentIndex = parsedUrl.indexOf('#Intent;');
+            if (intentIndex !== -1) {
+              parsedUrl = parsedUrl.substring(0, intentIndex);
+            }
+            console.log('[WebView Intent Parser] Converted intent URL to deep link:', parsedUrl);
+
+            Linking.openURL(parsedUrl).catch(err => {
+              console.error('[WebView Intent Parser] Failed to open converted intent:', err);
+            });
+          } else {
+            Linking.openURL(url).catch(err => {
+              console.error('[WebView Intent Parser] Failed to open raw intent:', err);
+            });
+          }
+        } catch (e) {
+          console.error('[WebView Intent Parser] Error parsing intent:', e);
+        }
+        return false;
+      }
+
+      // Handle standard deep links directly (e.g. upi://, phonepe://, paytm://)
+      Linking.canOpenURL(url)
+        .then(supported => {
+          if (supported) {
+            Linking.openURL(url).catch(err => {
+              console.error('[WebView Navigation] Failed to open deep link:', err);
+            });
+          } else {
+            console.log('[WebView Navigation] canOpenURL returned false. Attempting fallback direct openURL:', url);
+            Linking.openURL(url).catch(err => {
+              console.error('[WebView Navigation] Fallback direct openURL failed:', err);
+            });
+          }
+        })
+        .catch(err => {
+          console.error('[WebView Navigation] Error checking URL support, attempting direct openURL:', err);
+          Linking.openURL(url).catch(openErr => {
+            console.error('[WebView Navigation] Direct openURL from check catch failed:', openErr);
+          });
+        });
+      return false; // Stop WebView from loading this URL
+    }
+
+    return true; // Allow WebView to load standard web URLs
+  };
 
   const [razorpayKey, setRazorpayKey] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -86,7 +153,6 @@ export default function PaymentScreen() {
           <script>
             var options = {
               "key": "${resolvedKey}",
-              "amount": ${amountInPaise},
               "currency": "INR",
               "name": "${safeName}",
               "description": "Premium Juice Order",
@@ -123,7 +189,7 @@ export default function PaymentScreen() {
       const response = await axios.post(
         `${BACKEND_URL}/create-order`,
         { amount: Number(amount), currency: 'INR', receipt: `rcpt_${Date.now()}` },
-        { timeout: 45000 } 
+        { timeout: 60000 }
       );
 
       if (response.data?.success && response.data?.order_id) {
@@ -186,7 +252,7 @@ export default function PaymentScreen() {
       const response = await axios.post(
         `${BACKEND_URL}/create-order`,
         { amount: Number(amount), currency: 'INR', receipt: `rcpt_${Date.now()}` },
-        { timeout: 45000 }
+        { timeout: 60000 }
       );
       if (response.data?.success && response.data?.order_id) {
         setOrderId(response.data.order_id);
@@ -208,38 +274,39 @@ export default function PaymentScreen() {
     setSaveError(null);
 
     try {
-      const uId = (params.userId as string) || (await supabase.auth.getUser()).data.user?.id;
+      const uId = (params.userId as string) || (await supabase.auth.getSession()).data.session?.user?.id;
       if (!uId) throw new Error('User session expired. Please login again.');
 
-      // Parallelize verification and order creation with a 5s timeout on verification
-      const verificationPromise = axios.post(
+      // Fire-and-forget payment verification request to the backend in the background.
+      // This prevents Render's cold-start sleep latency from blocking the customer's payment flow.
+      axios.post(
         `${BACKEND_URL}/verify-payment`,
         {
           razorpay_order_id: razorpayData.razorpay_order_id,
           razorpay_payment_id: razorpayData.razorpay_payment_id,
           razorpay_signature: razorpayData.razorpay_signature,
         },
-        { timeout: 5000 }
-      ).then(res => res.data?.success).catch(e => {
-        console.warn('[Payment] Verification timeout/error. Proceeding safely.', e.message);
-        return true; 
+        { timeout: 15000 }
+      ).then(res => {
+        console.log('[Payment] Background verification status logged:', res.data?.success);
+      }).catch(e => {
+        console.warn('[Payment] Background verification logged with warning:', e.message);
       });
 
-      const orderPromise = placeOrder(
+      // Save order to the database instantly
+      const dbOrderId = await placeOrder(
         uId,
         String(address || 'Online Order'),
         'online',
         'PAID',
-        { 
-          latitude: Number(lat || 0), 
+        {
+          latitude: Number(lat || 0),
           longitude: Number(lng || 0),
           formattedAddress: String(address || '')
         },
         String(name || 'Customer'),
         String(contact || '')
       );
-
-      const [isVerified, dbOrderId] = await Promise.all([verificationPromise, orderPromise]);
 
       if (!dbOrderId) throw new Error('Payment verified, but failed to save order to database. Please contact support.');
 
@@ -292,7 +359,7 @@ export default function PaymentScreen() {
 
   const handlePaymentFailure = async (error: any) => {
     try {
-      const uId = (params.userId as string) || (await supabase.auth.getUser()).data.user?.id;
+      const uId = (params.userId as string) || (await supabase.auth.getSession()).data.session?.user?.id;
       await supabase.from('failed_transactions').insert({
         user_id: uId,
         order_id: orderId,
@@ -336,6 +403,7 @@ export default function PaymentScreen() {
               domStorageEnabled
               mixedContentMode="always"
               style={{ flex: 1 }}
+              onShouldStartLoadWithRequest={handleWebViewNavigation}
             />
           )
         )}

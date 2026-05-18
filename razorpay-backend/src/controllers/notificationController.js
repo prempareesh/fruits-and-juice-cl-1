@@ -101,7 +101,7 @@ https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
     // 2. SEND WHATSAPP (Wrapped in try-catch)
     let whatsappResponse = null;
     let customerWhatsappResponse = null;
-    if (process.env.ENABLE_WHATSAPP === 'true') {
+    if (!process.env.ENABLE_WHATSAPP || process.env.ENABLE_WHATSAPP === 'true') {
         // Send to Admin
         if (whatsappAdminPhone) {
             try {

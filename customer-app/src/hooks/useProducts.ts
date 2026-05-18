@@ -13,14 +13,16 @@ export const useProducts = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const pageRef = useRef(0);
+  const hasMoreRef = useRef(true);
 
   const fetchProducts = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
       pageRef.current = 0;
+      hasMoreRef.current = true;
       setHasMore(true);
     }
     
-    if (!hasMore && !isRefresh) return;
+    if (!hasMoreRef.current && !isRefresh) return;
 
     try {
       if (isRefresh) setRefreshing(true);
@@ -46,7 +48,9 @@ export const useProducts = () => {
         if (data) {
           console.log(`[useProducts] Fetched ${data.length} products`);
           setProducts(prev => isRefresh ? data : [...prev, ...data]);
-          setHasMore(data.length === PAGE_SIZE);
+          const nextHasMore = data.length === PAGE_SIZE;
+          hasMoreRef.current = nextHasMore;
+          setHasMore(nextHasMore);
           pageRef.current += 1;
           
           ProductService.prefetchImages(data);
@@ -66,7 +70,7 @@ export const useProducts = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [hasMore]);
+  }, []);
 
   useEffect(() => {
     fetchProducts();

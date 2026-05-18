@@ -38,22 +38,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let initialSessionFetched = false;
 
-    const initAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (mounted) await handleStateChange(session);
-      } catch (err) {
-        console.error('[AUTH_ERROR] Initialization failed:', err);
-        if (mounted) setLoading(false);
+    // Retrieve initial session once to set up start state
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && !initialSessionFetched) {
+        initialSessionFetched = true;
+        handleStateChange(session);
       }
-    };
+    }).catch(err => {
+      console.error('[AUTH_ERROR] Initialization failed:', err);
+      if (mounted) setLoading(false);
+    });
 
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      console.log('[AUTH_EVENT] Change detected:', _event);
-      if (mounted) await handleStateChange(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AUTH_EVENT] Change detected:', event);
+      if (event === 'INITIAL_SESSION') {
+        // Skip duplicate INITIAL_SESSION trigger since getSession handles the startup state
+        return;
+      }
+      if (mounted) {
+        await handleStateChange(session);
+      }
     });
 
     return () => {
@@ -102,9 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // SELF-HEALING: Auto-create missing profile instantly
         console.log('[AUTH_DEBUG] Self-healing: Creating missing profile...');
         const newRole = currUser.email === 'admin@freshflow.com' ? 'admin' : 'customer';
-        const newProfile = { 
+        const newProfile: any = { 
           id: currUser.id, 
-          email: currUser.email, 
           role: newRole, 
           full_name: currUser.user_metadata?.full_name || 'Customer',
           phone: currUser.user_metadata?.phone || '',
@@ -112,11 +117,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           updated_at: new Date().toISOString()
         };
         
-        const { error: upsertError } = await supabase.from('profiles').upsert(newProfile);
+        let { error: upsertError } = await supabase.from('profiles').upsert({ ...newProfile, email: currUser.email });
+        
+        if (upsertError && (upsertError.message?.includes('email') || upsertError.code === '42703')) {
+          console.log('[AUTH_DEBUG] Profiles table missing email column, retrying without email...');
+          const { error: retryError } = await supabase.from('profiles').upsert(newProfile);
+          upsertError = retryError;
+        }
         
         if (!upsertError) {
           setRole(newRole as any);
-          setProfile(newProfile as any);
+          setProfile({ ...newProfile, email: currUser.email } as any);
           setLoading(false);
           return;
         }
