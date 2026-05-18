@@ -62,6 +62,11 @@ export default function ProfileScreen() {
     setLoading(true);
     console.log('[Profile_Update] Starting update for user:', user.id);
     
+    // Safety timeout of 8 seconds to prevent any infinite "Saving..." loader hangs
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Update request timed out. Please check your network connection.')), 8000)
+    );
+    
     try {
       // 1 & 2. Update Auth Metadata and Profiles Table in Parallel
       const authUpdatePromise = supabase.auth.updateUser({
@@ -82,12 +87,11 @@ export default function ProfileScreen() {
         })
         .eq('id', user.id);
 
-      const [authRes, profileRes] = await Promise.all([authUpdatePromise, profileDbUpdatePromise]);
-
-      if (authRes.error) throw authRes.error;
-      if (profileRes.error) {
-        console.warn('[Profile_Update] Profile table sync failed:', profileRes.error.message);
-      }
+      // Race the actual updates against our 8-second safety timeout
+      await Promise.race([
+        Promise.all([authUpdatePromise, profileDbUpdatePromise]),
+        timeoutPromise
+      ]);
 
       // 3. Refresh Global State in the background (Non-blocking)
       if (refreshProfile) {

@@ -13,6 +13,7 @@ import {
   TextInput,
   ActivityIndicator,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useCartStore } from '@/src/store/useCartStore';
@@ -51,12 +52,29 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'cod'>('online');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [isCODModalVisible, setCODModalVisible] = useState(false);
   const { user, profile } = useAuth();
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const { validateCartStock } = useCartStore.getState();
+      await validateCartStock();
+      if (selectedAddress) {
+        await setSelectedAddress(selectedAddress);
+      }
+      Toast.show({ type: 'success', text1: 'Cart synchronized successfully.' });
+    } catch (err: any) {
+      console.warn('[Cart_Refresh_Error]', err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (profile) {
@@ -183,7 +201,13 @@ export default function CartScreen() {
         <Text style={styles.headerTitle}>My Basket ({items.length} {items.length === 1 ? 'item' : 'items'})</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primaryGreen]} />
+        }
+      >
         
         {/* Address & Delivery Section */}
         <View style={styles.section}>

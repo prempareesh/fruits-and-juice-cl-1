@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 async function generateCleanIcons() {
-  const sourcePath = '/Users/preampareesh/.gemini/antigravity/brain/88a464e4-015e-4577-b96a-ebf2105e444c/freshflow_logo_1779091041045.png';
+  const sourcePath = '/Users/preampareesh/.gemini/antigravity/brain/88a464e4-015e-4577-b96a-ebf2105e444c/media__1779109338537.png';
   
   if (!fs.existsSync(sourcePath)) {
     console.error(`❌ Source image not found at: ${sourcePath}`);

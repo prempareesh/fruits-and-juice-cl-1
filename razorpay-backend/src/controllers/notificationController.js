@@ -62,11 +62,11 @@ exports.sendOrderNotification = async (req, res) => {
 
     // Build the exact message format in the structure requested by the user
     const message = `
-## 🧾 *NEW ORDER RECEIPT*
+🧾 *AK FRUITS & JUICES - NEW ORDER RECEIPT*
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🆔 *Order ID:* #${id.slice(0, 8).toUpperCase()}
 ⏰ *Time:* ${timeFormatted}
-------------------------
 
 👤 *CUSTOMER DETAILS:*
 • *Name:* ${customerName}
@@ -87,10 +87,10 @@ ${itemsList}
 💳 *PAYMENT METHOD:*
 • ${paymentType === 'cod' ? 'Cash on Delivery' : 'Online Payment'}
 
-🗺️ *NAVIGATE:*
+🗺️ *NAVIGATE TO DELIVERY LOCATION:*
 https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}
 
----
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 `.trim();
 
     // 1. SEND SMS (Wrapped in try-catch)
@@ -151,11 +151,11 @@ https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}
 
                 const toCustomer = `whatsapp:${formattedCustomerPhone}`;
                 const customerMessage = `
-## 🧾 *YOUR ORDER RECEIPT*
+🧾 *AK FRUITS & JUICES - YOUR ORDER RECEIPT*
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🆔 *Order ID:* #${id.slice(0, 8).toUpperCase()}
 ⏰ *Time:* ${timeFormatted}
-------------------------
 
 👤 *CUSTOMER DETAILS:*
 • *Name:* ${customerName}
@@ -179,7 +179,8 @@ ${itemsList}
 🗺️ *NAVIGATE:*
 https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}
 
----
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+Thank you for shopping with Padmavati Fruits & Juices!
 `.trim();
 
                 customerWhatsappResponse = await client.messages.create({

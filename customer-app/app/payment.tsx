@@ -133,8 +133,8 @@ export default function PaymentScreen() {
   );
   const amountInPaise = useMemo(() => Math.round(Number(amount) * 100), [amount]);
   const safeName = useMemo(() => String(name || 'Customer').replace(/['"]/g, ''), [name]);
-  const safeEmail = useMemo(() => String(email || '').replace(/['"]/g, ''), [email]);
-  const safeContact = useMemo(() => String(contact || '').replace(/['"]/g, ''), [contact]);
+  const safeEmail = useMemo(() => String(email || 'customer@padmavati.com').replace(/['"]/g, ''), [email]);
+  const safeContact = useMemo(() => String(contact || '9999999999').replace(/['"]/g, ''), [contact]);
 
   const checkoutHtml = useMemo(() => {
     if (!orderId || !resolvedKey) return '';
@@ -156,6 +156,7 @@ export default function PaymentScreen() {
           <script>
             var options = {
               "key": "${resolvedKey}",
+              "amount": "${amountInPaise}",
               "currency": "INR",
               "name": "${safeName}",
               "description": "Premium Juice Order",
@@ -437,6 +438,10 @@ export default function PaymentScreen() {
               mixedContentMode="always"
               style={{ flex: 1 }}
               onShouldStartLoadWithRequest={handleWebViewNavigation}
+              androidHardwareAccelerationDisabled={false}
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
+              userAgent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
             />
           )
         )}

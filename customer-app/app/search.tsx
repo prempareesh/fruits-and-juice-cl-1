@@ -68,76 +68,88 @@ export default function SearchScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
       
-      {/* Sticky Search Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backBtn} 
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <ChevronLeft size={24} color={COLORS.dark} strokeWidth={2.5} />
-        </TouchableOpacity>
-        
-        <View style={styles.searchContainer}>
-          <Search size={20} color={COLORS.primaryGreen} strokeWidth={2.5} />
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            placeholder='Search for "mangoes", "milk", "juice"...'
-            placeholderTextColor={COLORS.muted}
-            value={query}
-            onChangeText={setQuery}
-            returnKeyType="search"
-            autoFocus
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')}>
-              <X size={18} color={COLORS.muted} strokeWidth={2.5} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Results Section */}
-      {query.length > 0 ? (
-        <FlatList
-          data={filteredResults}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          numColumns={2}
-          contentContainerStyle={styles.listContent}
-          columnWrapperStyle={styles.columnWrapper}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <Animated.View entering={FadeIn} style={styles.emptyState}>
-              <Image 
-                source={{ uri: 'https://cdn-icons-png.flaticon.com/512/6134/6134065.png' }} 
-                style={styles.emptyImage} 
-              />
-              <Text style={styles.emptyTitle}>No results found for "{query}"</Text>
-              <Text style={styles.emptySubtitle}>Try searching for something else like "Fruits" or "Vegetables"</Text>
-            </Animated.View>
-          }
-        />
-      ) : (
-        <View style={styles.placeholderState}>
-          <View style={styles.popularSearchContainer}>
-            <Text style={styles.popularTitle}>Popular Searches</Text>
-            <View style={styles.tagContainer}>
-              {['Mango', 'Fresh Juice', 'Green Chillies', 'Banana', 'Tomato'].map((tag) => (
-                <TouchableOpacity 
-                  key={tag} 
-                  style={styles.tag}
-                  onPress={() => setQuery(tag)}
-                >
-                  <Search size={14} color={COLORS.primaryGreen} style={{ marginRight: 6 }} />
-                  <Text style={styles.tagText}>{tag}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+      <Animated.View style={{ flex: 1 }} entering={FadeIn}>
+        {/* Sticky Search Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backBtn} 
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft size={24} color={COLORS.dark} strokeWidth={2.5} />
+          </TouchableOpacity>
+          
+          <View style={styles.searchContainer}>
+            <Search size={20} color={COLORS.primaryGreen} strokeWidth={2.5} />
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder='Search for "mangoes", "milk", "juice"...'
+              placeholderTextColor={COLORS.muted}
+              value={query}
+              onChangeText={setQuery}
+              returnKeyType="search"
+              autoFocus
+            />
+            {query.length > 0 && (
+              <TouchableOpacity onPress={() => setQuery('')}>
+                <X size={18} color={COLORS.muted} strokeWidth={2.5} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
-      )}
+
+        {/* Results / Placeholder Section wrapped for keyboard spacing */}
+        {query.length > 0 ? (
+          <FlatList
+            data={filteredResults}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            numColumns={2}
+            contentContainerStyle={styles.listContent}
+            columnWrapperStyle={styles.columnWrapper}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <Animated.View entering={FadeIn} style={styles.emptyState}>
+                <Image 
+                  source={{ uri: 'https://cdn-icons-png.flaticon.com/512/6134/6134065.png' }} 
+                  style={styles.emptyImage} 
+                />
+                <Text style={styles.emptyTitle}>No results found for "{query}"</Text>
+                <Text style={styles.emptySubtitle}>Try searching for something else like "Fruits" or "Vegetables"</Text>
+              </Animated.View>
+            }
+          />
+        ) : (
+          <FlatList
+            data={[]}
+            renderItem={null}
+            ListHeaderComponent={
+              <View style={styles.placeholderState}>
+                <View style={styles.popularSearchContainer}>
+                  <Text style={styles.popularTitle}>Popular Searches</Text>
+                  <View style={styles.tagContainer}>
+                    {['Mango', 'Fresh Juice', 'Green Chillies', 'Banana', 'Tomato'].map((tag) => (
+                      <TouchableOpacity 
+                        key={tag} 
+                        style={styles.tag}
+                        onPress={() => setQuery(tag)}
+                        activeOpacity={0.7}
+                      >
+                        <Search size={14} color={COLORS.primaryGreen} style={{ marginRight: 6 }} />
+                        <Text style={styles.tagText}>{tag}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            }
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </Animated.View>
     </SafeAreaView>
   );
 }

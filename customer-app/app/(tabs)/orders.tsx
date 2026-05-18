@@ -5,7 +5,8 @@ import {
   StyleSheet, 
   ScrollView, 
   ActivityIndicator,
-  TouchableOpacity
+  TouchableOpacity,
+  RefreshControl
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Order } from '../../src/types';
@@ -18,6 +19,7 @@ export default function OrdersScreen() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -82,6 +84,12 @@ export default function OrdersScreen() {
     }
   }
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchOrders(true);
+    setRefreshing(false);
+  };
+
   const getStatusColor = (status: string) => {
     const s = status.toUpperCase();
     switch (s) {
@@ -98,7 +106,7 @@ export default function OrdersScreen() {
     }
   };
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View style={[styles.center, { backgroundColor: COLORS.white }]}>
         <ActivityIndicator size="large" color={COLORS.primaryGreen} />
@@ -108,16 +116,27 @@ export default function OrdersScreen() {
 
   if (orders.length === 0) {
     return (
-      <View style={[styles.emptyContainer, { backgroundColor: COLORS.white }]}>
+      <ScrollView 
+        contentContainerStyle={[styles.emptyContainer, { flex: 1, backgroundColor: COLORS.white }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primaryGreen]} />
+        }
+      >
         <ShoppingBag size={64} color={COLORS.border} />
         <Text style={[styles.emptyTitle, { color: COLORS.dark }]}>No orders yet</Text>
         <Text style={[styles.emptySubtitle, { color: COLORS.textSecondary }]}>When you place an order, it will appear here.</Text>
-      </View>
+      </ScrollView>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: COLORS.white }]} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: COLORS.white }]} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primaryGreen]} />
+      }
+    >
       <View style={[styles.header, { backgroundColor: COLORS.white }]}>
         <Text style={[styles.headerTitle, { color: COLORS.dark }]}>Order History</Text>
         <Text style={[styles.headerSubtitle, { color: COLORS.textSecondary }]}>Your recent purchases and their status</Text>

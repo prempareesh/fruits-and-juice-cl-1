@@ -43,21 +43,57 @@ export default function LoginScreen() {
       });
       
       console.log('[GOOGLE_SIGNIN] Auth redirect URL:', redirectTo);
-
+ 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
-          skipBrowserRedirect: false,
+          skipBrowserRedirect: true,
         },
       });
-
+ 
       if (error) throw error;
-
-      // Fallback for native/web container if skipBrowserRedirect doesn't auto-redirect
+ 
       if (data?.url) {
-        console.log('[GOOGLE_SIGNIN] Triggering auth session manually fallback...');
-        await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+        console.log('[GOOGLE_SIGNIN] Opening auth session manually...');
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+        
+        if (result.type === 'success' && result.url) {
+          console.log('[GOOGLE_SIGNIN] Auth session returned, parsing tokens...');
+          const url = result.url;
+          const hashIndex = url.indexOf('#');
+          let searchString = '';
+          if (hashIndex !== -1) {
+            searchString = url.substring(hashIndex + 1);
+          } else {
+            const questionIndex = url.indexOf('?');
+            if (questionIndex !== -1) {
+              searchString = url.substring(questionIndex + 1);
+            }
+          }
+ 
+          if (searchString) {
+            const params: Record<string, string> = {};
+            const pairs = searchString.split('&');
+            for (const pair of pairs) {
+              const [key, value] = pair.split('=');
+              if (key && value) {
+                params[decodeURIComponent(key)] = decodeURIComponent(value);
+              }
+            }
+ 
+            if (params.access_token && params.refresh_token) {
+              console.log('[GOOGLE_SIGNIN] Exchanging session tokens...');
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: params.access_token,
+                refresh_token: params.refresh_token,
+              });
+              if (sessionError) throw sessionError;
+              console.log('[GOOGLE_SIGNIN] Session exchange successful!');
+              Toast.show({ type: 'success', text1: 'Google Login successful' });
+            }
+          }
+        }
       }
     } catch (err: any) {
       console.error('[GOOGLE_SIGNIN_ERROR]', err);
