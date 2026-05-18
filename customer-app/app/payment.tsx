@@ -293,7 +293,7 @@ export default function PaymentScreen() {
         console.warn('[Payment] Background verification logged with warning:', e.message);
       });
 
-      // Save order to the database instantly with an 8-second safety timeout
+      // Save order to the database instantly with a resilient 25-second safety timeout
       // to ensure the user is never stuck forever on the verification screen due to database/network locks.
       const orderPlacementPromise = placeOrder(
         uId,
@@ -310,7 +310,7 @@ export default function PaymentScreen() {
       );
 
       const timeoutPromise = new Promise<null>((_, reject) =>
-        setTimeout(() => reject(new Error('Order creation timed out. Please click below to complete.')), 8000)
+        setTimeout(() => reject(new Error('Order creation timed out. Please click below to complete.')), 25000)
       );
 
       const dbOrderId = await Promise.race([orderPlacementPromise, timeoutPromise]);

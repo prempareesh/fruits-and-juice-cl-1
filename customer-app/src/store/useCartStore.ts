@@ -356,88 +356,92 @@ export const useCartStore = create<CartStore>()(
                 p_customer_phone: customerPhone
               };
 
-              // ── PROFILE INTEGRITY CHECK ──────────────────────────
-              // Ensures a profile exists to prevent FK violation 23503.
-              try {
-                const { data: profile, error: profileCheckError } = await supabase
-                  .from('profiles')
-                  .select('id')
-                  .eq('id', userId)
-                  .maybeSingle();
-
-                if (!profile || profileCheckError) {
-                  console.log('[CART_CHECKOUT] Profile missing, creating entry for:', userId);
-                  await supabase.from('profiles').upsert({
-                    id: userId,
-                    full_name: customerName || 'Customer',
-                    role: 'customer',
-                    updated_at: new Date().toISOString()
-                  });
-                }
-              } catch (err) {
-                console.warn('[CART_CHECKOUT] Profile sync warning:', err);
-              }
-
+              // ── PROFILE INTEGRITY CHECK (NON-BLOCKING) ──────────────────────────
+              // Ensures a profile exists to prevent FK violation 23503 in the background.
+              supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', userId)
+                .maybeSingle()
+                .then(({ data: profile, error: profileCheckError }) => {
+                  if (!profile || profileCheckError) {
+                    console.log('[CART_CHECKOUT] Profile missing, creating in background for:', userId);
+                    supabase.from('profiles').upsert({
+                      id: userId,
+                      full_name: customerName || 'Customer',
+                      role: 'customer',
+                      updated_at: new Date().toISOString()
+                    }).then(() => {
+                      console.log('[CART_CHECKOUT] Profile healing complete.');
+                    });
+                  }
+                })
+                .catch((err) => {
+                  console.warn('[CART_CHECKOUT] Profile sync background warning:', err);
+                });
+ 
               console.log('[RPC_PRE-FLIGHT] Calling place_order_v2 with payload:', JSON.stringify(payload, null, 2));
-
+ 
               const { data, error } = await supabase.rpc('place_order_v2', payload);
-
+ 
               if (error) {
                 console.error('[RPC_ERROR]', error);
                 let friendlyMessage = error.message;
                 if (error.code === '23503') friendlyMessage = "Profile sync error. Please try again.";
                 if (error.message?.includes('not found')) friendlyMessage = "Database sync required. Please contact support.";
-
+ 
                 throw new Error(`${friendlyMessage} (Code: ${error.code})`);
               }
-
+ 
               if (!data || !data.success) {
                 throw new Error(data?.message || 'Order placement failed on server.');
               }
-
+ 
               const newOrderId = data.order_id;
               console.log('[RPC_SUCCESS] Order created:', newOrderId);
-
-              // ── TRIGGER NOTIFICATIONS (NON-BLOCKING) ──────────────────────────────────
-              try {
-                const rawApiURL = process.env.EXPO_PUBLIC_API_URL || 'https://freshflow-backend-x29k.onrender.com';
-                const apiURL = rawApiURL.replace(/\/api\/payment\/?$/, '').replace(/\/$/, '');
-                console.log('[Notification_Debug] Triggering alert via:', apiURL);
-
-                fetch(`${apiURL}/api/notification/send-order`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    orderData: {
-                      id: newOrderId,
-                      customerName: customerName || 'Guest',
-                      customerPhone: customerPhone || 'N/A',
-                      address: address,
-                      latitude: locationData?.latitude || 0,
-                      longitude: locationData?.longitude || 0,
-                      landmark: locationData?.landmark || '',
-                      items: items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
-                      total: payload.p_total_amount,
-                      paymentType: paymentType,
-                      createdAt: new Date().toISOString()
+ 
+              // ── TRIGGER NOTIFICATIONS (NON-BLOCKING BACKGROUND THREAD) ────────────────
+              setTimeout(() => {
+                try {
+                  const rawApiURL = process.env.EXPO_PUBLIC_API_URL || 'https://freshflow-backend-x29k.onrender.com';
+                  const apiURL = rawApiURL.replace(/\/api\/payment\/?$/, '').replace(/\/$/, '');
+                  console.log('[Notification_Debug] Triggering alert via:', apiURL);
+ 
+                  fetch(`${apiURL}/api/notification/send-order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      orderData: {
+                        id: newOrderId,
+                        customerName: customerName || 'Guest',
+                        customerPhone: customerPhone || 'N/A',
+                        address: address,
+                        latitude: locationData?.latitude || 0,
+                        longitude: locationData?.longitude || 0,
+                        landmark: locationData?.landmark || '',
+                        items: items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
+                        total: payload.p_total_amount,
+                        paymentType: paymentType,
+                        createdAt: new Date().toISOString()
+                      }
+                    })
+                  })
+                  .then(async (response) => {
+                    if (!response.ok) {
+                      const errorText = await response.text();
+                      console.warn('[Notification_Error] Server responded with error:', response.status, errorText);
+                    } else {
+                      const resData = await response.json();
+                      console.log('[Notification_Success] Server acknowledged notification:', resData);
                     }
                   })
-                })
-                .then(async (response) => {
-                  if (!response.ok) {
-                    const errorText = await response.text();
-                    console.warn('[Notification_Error] Server responded with error:', response.status, errorText);
-                  } else {
-                    const resData = await response.json();
-                    console.log('[Notification_Success] Server acknowledged notification:', resData);
-                  }
-                })
-                .catch((notifyErr) => {
-                  console.warn('[Notification_Network_Error] Failed to reach notification server:', notifyErr.message);
-                });
-              } catch (notifyErr: any) {
-                console.warn('[Notification_Network_Error] Failed to trigger background fetch:', notifyErr.message);
-              }
+                  .catch((notifyErr) => {
+                    console.warn('[Notification_Network_Error] Failed to reach notification server:', notifyErr.message);
+                  });
+                } catch (notifyErr: any) {
+                  console.warn('[Notification_Network_Error] Failed to trigger background fetch:', notifyErr.message);
+                }
+              }, 50);
 
               if (Platform.OS !== 'web') {
                 try {
