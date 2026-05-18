@@ -5,6 +5,7 @@ const config = getDefaultConfig(__dirname);
 
 // 1. Handle Shared Workspace Folders
 config.watchFolders = [
+  ...(config.watchFolders || []),
   path.resolve(__dirname, '../shared'),
   path.resolve(__dirname, 'node_modules'),
 ];

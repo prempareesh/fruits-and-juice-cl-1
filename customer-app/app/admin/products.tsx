@@ -118,10 +118,6 @@ export default function AdminProducts() {
           <Text style={styles.subtitle}>{stats.totalProducts} products in stock</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => setIsBulkModalVisible(true)}>
-            <Upload size={18} color="#10b981" />
-            <Text style={styles.secondaryBtnText}>Bulk Import</Text>
-          </TouchableOpacity>
           <TouchableOpacity 
             style={styles.primaryBtn} 
             onPress={() => {

@@ -1,5 +1,10 @@
 import * as React from 'react';
 import { useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import { makeRedirectUri } from 'expo-auth-session';
+
+WebBrowser.maybeCompleteAuthSession();
 import { 
   View, 
   Text, 
@@ -19,14 +24,48 @@ import { useRouter } from 'expo-router';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Toast from 'react-native-toast-message';
+import { JuicyLogo } from '../src/components/JuicyLogo';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
   // toastRef removed since we use global Toast
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setGoogleLoading(true);
+      const redirectTo = makeRedirectUri({
+        scheme: 'padmavati',
+      });
+      
+      console.log('[GOOGLE_SIGNIN] Auth redirect URL:', redirectTo);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: false,
+        },
+      });
+
+      if (error) throw error;
+
+      // Fallback for native/web container if skipBrowserRedirect doesn't auto-redirect
+      if (data?.url) {
+        console.log('[GOOGLE_SIGNIN] Triggering auth session manually fallback...');
+        await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      }
+    } catch (err: any) {
+      console.error('[GOOGLE_SIGNIN_ERROR]', err);
+      Alert.alert('Google Sign-In Failed', err.message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -97,11 +136,11 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <Image 
-              source={require('../assets/logo.jpg')} 
+              source={require('../assets/logo.png')} 
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>FreshFlow</Text>
+            <Text style={[styles.title, { fontSize: 20 }]}>Padmavati Fresh Fruits & Juices</Text>
             <Text style={styles.subtitle}>Fresh Fruits, Vegetables & Juices Delivery</Text>
           </View>
 
@@ -155,10 +194,37 @@ export default function LoginScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 15 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+              <Text style={{ marginHorizontal: 10, color: '#94a3b8', fontSize: 13, fontWeight: '600' }}>OR</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.btn, { marginTop: 0 }]} 
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading || loading}
+            >
+              <View style={[styles.gradient, { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }]}>
+                {googleLoading ? (
+                  <ActivityIndicator color="#64748b" />
+                ) : (
+                  <>
+                    <Image 
+                      source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.png' }} 
+                      style={{ width: 18, height: 18 }} 
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.btnText, { color: '#334155' }]}>Sign In with Google</Text>
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+
             <View style={styles.footer}>
               <Text style={styles.footerText}>New here? </Text>
               <TouchableOpacity onPress={() => router.push('/signup')}>
-                <Text style={styles.link}>Join FreshFlow</Text>
+                <Text style={styles.link}>Join Padmavati Fresh</Text>
               </TouchableOpacity>
             </View>
           </View>

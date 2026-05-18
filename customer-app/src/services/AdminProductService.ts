@@ -42,6 +42,48 @@ export const AdminProductService = {
   },
 
   async deleteProduct(id: string): Promise<void> {
+    const runSelfHealingFallback = async (originalReason: string) => {
+      console.log(`[AdminProductService] Running self-healing client-side fallback delete for ${id} due to:`, originalReason);
+      
+      // A. Delete associated juice_variants (if table exists)
+      try {
+        const { error: variantErr } = await supabase.from('juice_variants').delete().eq('product_id', id);
+        if (variantErr && !variantErr.message.includes('relation "public.juice_variants" does not exist') && !variantErr.message.includes('does not exist')) {
+          console.warn('[AdminProductService] Failed to delete variants:', variantErr.message);
+        }
+      } catch (vErr) {
+        console.warn('[AdminProductService] Ignored error deleting variants:', vErr);
+      }
+
+      // B. Delete associated reviews (if table exists)
+      try {
+        const { error: reviewErr } = await supabase.from('product_reviews').delete().eq('product_id', id);
+        if (reviewErr && !reviewErr.message.includes('does not exist')) {
+          console.warn('[AdminProductService] Failed to delete reviews:', reviewErr.message);
+        }
+      } catch (rErr) {
+        console.warn('[AdminProductService] Ignored error deleting reviews:', rErr);
+      }
+
+      // C. Delete associated order_items to satisfy foreign key constraints
+      try {
+        const { error: orderItemsErr } = await supabase.from('order_items').delete().eq('product_id', id);
+        if (orderItemsErr) {
+          console.warn('[AdminProductService] Failed to delete order items:', orderItemsErr.message);
+        }
+      } catch (oiErr) {
+        console.warn('[AdminProductService] Ignored error deleting order items:', oiErr);
+      }
+
+      // D. Delete the main product record
+      const { error: directError } = await supabase.from('products').delete().eq('id', id);
+      if (directError) {
+        throw new Error(`Cascading client-side delete failed: ${directError.message}`);
+      }
+      
+      console.log(`[AdminProductService] Direct cascading fallback delete successful for product ${id}`);
+    };
+
     try {
       // 1. Get product image URL first for cleanup
       const { data: product } = await supabase
@@ -72,21 +114,22 @@ export const AdminProductService = {
       
       if (error) {
         console.error('[AdminProductService] RPC Deletion Error:', error);
-        
-        // Specific check for missing function error (42883)
-        if (error.code === '42883') {
-          throw new Error('SYSTEM_SETUP_REQUIRED: The deletion function is missing in your database. Please copy and run the script in "scripts/delete_product_rpc.sql" in your Supabase SQL Editor once.');
-        }
-        
-        // Fallback: Try direct delete (will work if no order history exists)
-        console.log('[AdminProductService] RPC failed, attempting direct delete fallback...');
-        const { error: directError } = await supabase.from('products').delete().eq('id', id);
-        if (directError) throw new Error(`Direct delete failed: ${directError.message}`);
+        await runSelfHealingFallback(error.message);
+        return;
       }
 
       if (data && !data.success) {
-        console.warn('[AdminProductService] Business Logic Rejection:', data.message);
-        throw new Error(data.message);
+        console.warn('[AdminProductService] RPC Business Logic Rejection:', data.message);
+        
+        // If it's a permission / authorization rejection, respect it and throw
+        if (data.message.includes('Unauthorized') || data.message.includes('Only administrators')) {
+          throw new Error(data.message);
+        }
+        
+        // Otherwise, it is a relation error (e.g. relation "public.juice_variants" does not exist) or compilation issue.
+        // Fall back to direct cascading delete!
+        await runSelfHealingFallback(data.message);
+        return;
       }
 
       console.log(`[AdminProductService] Successfully purged product ${id}`);

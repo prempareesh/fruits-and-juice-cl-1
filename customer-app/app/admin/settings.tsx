@@ -42,7 +42,7 @@ export default function AdminSettings() {
     warehouse_address: '',
     latitude: '14.4351',
     longitude: '79.9674',
-    support_phone: '+91 98765 43210',
+    support_phone: '+91 63049 82511',
     delivery_time: '30-45 mins'
   });
 
@@ -70,7 +70,7 @@ export default function AdminSettings() {
           warehouse_address: data.warehouse_address ?? data.store_address ?? '',
           latitude: String(data.latitude ?? data.store_lat ?? '14.4351'),
           longitude: String(data.longitude ?? data.store_lng ?? '79.9674'),
-          support_phone: data.support_phone ?? '+91 98765 43210',
+          support_phone: data.support_phone ?? '+91 63049 82511',
           delivery_time: data.delivery_time ?? data.estimated_delivery_time ?? '30-45 mins'
         });
       }

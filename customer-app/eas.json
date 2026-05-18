@@ -1,4 +1,8 @@
 {
+  "cli": {
+    "version": ">= 18.13.0",
+    "appVersionSource": "remote"
+  },
   "build": {
     "development": {
       "developmentClient": true,
@@ -12,16 +16,16 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://scdtwgquzsqnlhqovxut.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_iOztVHha4OykToDX9WqsFw_Dr7NtFVx",
-        "EXPO_PUBLIC_API_URL": "https://juice-app-9uzq.onrender.com/api/payment",
+        "EXPO_PUBLIC_API_URL": "https://freshflow-backend-x29k.onrender.com/api/payment",
         "EXPO_PUBLIC_RAZORPAY_KEY": "rzp_test_SpzzTqML8dupQg"
       }
     },
     "production": {
-      "distribution": "store",
+      "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://scdtwgquzsqnlhqovxut.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_iOztVHha4OykToDX9WqsFw_Dr7NtFVx",
-        "EXPO_PUBLIC_API_URL": "https://juice-app-9uzq.onrender.com/api/payment",
+        "EXPO_PUBLIC_API_URL": "https://freshflow-backend-x29k.onrender.com/api/payment",
         "EXPO_PUBLIC_RAZORPAY_KEY": "rzp_test_SpzzTqML8dupQg"
       }
     }

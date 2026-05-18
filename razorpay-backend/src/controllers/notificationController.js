@@ -56,13 +56,17 @@ exports.sendOrderNotification = async (req, res) => {
     // Format dynamic items list
     const itemsList = items.map(item => `• ${item.name} (${item.quantity}x) - ₹${item.price}`).join('\n');
 
-    // Build the exact message format in the premium structure requested by the user
+    const timeFormatted = new Date(createdAt)
+      .toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+      .toLowerCase();
+
+    // Build the exact message format in the structure requested by the user
     const message = `
 ## 🧾 *NEW ORDER RECEIPT*
 
 🆔 *Order ID:* #${id.slice(0, 8).toUpperCase()}
-⏰ *Time:* ${new Date(createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true }).toLowerCase()}
--------------------------------
+⏰ *Time:* ${timeFormatted}
+------------------------
 
 👤 *CUSTOMER DETAILS:*
 • *Name:* ${customerName}
@@ -83,8 +87,8 @@ ${itemsList}
 💳 *PAYMENT METHOD:*
 • ${paymentType === 'cod' ? 'Cash on Delivery' : 'Online Payment'}
 
-${latitude && longitude && latitude !== 0 ? `🗺️ *NAVIGATE:*
-https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
+🗺️ *NAVIGATE:*
+https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}
 
 ---
 `.trim();
@@ -116,7 +120,7 @@ https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
                     adminFormatted = `+${adminFormatted.replace(/\D/g, '')}`;
                     if (adminFormatted.length === 11) adminFormatted = `+91${adminFormatted.slice(1)}`;
                 }
-
+ 
                 const toAdmin = `whatsapp:${adminFormatted}`;
                 console.log(`[Twilio_Debug] SENDING TO ADMIN: ${toAdmin} | FROM: ${whatsappFrom}`);
 
@@ -146,7 +150,37 @@ https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : ''}
                 }
 
                 const toCustomer = `whatsapp:${formattedCustomerPhone}`;
-                const customerMessage = `Hi ${customerName},\n\nYour order #${id.slice(0, 6).toUpperCase()} has been received and is being processed!\n\nTotal: ₹${total}\nPayment: ${paymentType === 'cod' ? 'Cash on Delivery' : 'Online Payment'}\n\nThank you for choosing Juicy App! 🧃`;
+                const customerMessage = `
+## 🧾 *YOUR ORDER RECEIPT*
+
+🆔 *Order ID:* #${id.slice(0, 8).toUpperCase()}
+⏰ *Time:* ${timeFormatted}
+------------------------
+
+👤 *CUSTOMER DETAILS:*
+• *Name:* ${customerName}
+• *Phone:* ${customerPhone}
+
+📍 *DELIVERY LOCATION:*
+• *Address:* ${address}
+• *Landmark:* ${landmark || 'Not specified'}
+
+🛒 *ORDERED ITEMS:*
+${itemsList}
+
+💰 *FINANCIAL SUMMARY:*
+• *Subtotal:* ₹${total}
+• *Delivery Fee:* FREE
+• *TOTAL AMOUNT:* ₹${total}
+
+💳 *PAYMENT METHOD:*
+• ${paymentType === 'cod' ? 'Cash on Delivery' : 'Online Payment'}
+
+🗺️ *NAVIGATE:*
+https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}
+
+---
+`.trim();
 
                 customerWhatsappResponse = await client.messages.create({
                     body: customerMessage,

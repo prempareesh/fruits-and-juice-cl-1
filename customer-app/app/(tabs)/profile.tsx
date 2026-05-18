@@ -63,8 +63,8 @@ export default function ProfileScreen() {
     console.log('[Profile_Update] Starting update for user:', user.id);
     
     try {
-      // 1. Update Auth Metadata
-      const { error: authError } = await supabase.auth.updateUser({
+      // 1 & 2. Update Auth Metadata and Profiles Table in Parallel
+      const authUpdatePromise = supabase.auth.updateUser({
         data: {
           full_name: tempProfile.name,
           phone: tempProfile.phone,
@@ -72,10 +72,8 @@ export default function ProfileScreen() {
           office_address: tempProfile.officeAddress,
         }
       });
-      if (authError) throw authError;
 
-      // 2. Update Profiles Table
-      const { error: profileError } = await supabase
+      const profileDbUpdatePromise = supabase
         .from('profiles')
         .update({
           full_name: tempProfile.name,
@@ -83,13 +81,18 @@ export default function ProfileScreen() {
           address: tempProfile.permanentAddress,
         })
         .eq('id', user.id);
-      
-      if (profileError) {
-        console.warn('[Profile_Update] Profile table sync failed:', profileError.message);
+
+      const [authRes, profileRes] = await Promise.all([authUpdatePromise, profileDbUpdatePromise]);
+
+      if (authRes.error) throw authRes.error;
+      if (profileRes.error) {
+        console.warn('[Profile_Update] Profile table sync failed:', profileRes.error.message);
       }
 
-      // 3. Refresh Global State
-      if (refreshProfile) await refreshProfile();
+      // 3. Refresh Global State in the background (Non-blocking)
+      if (refreshProfile) {
+        refreshProfile().catch(err => console.warn('[Profile_Update] background refresh failed:', err));
+      }
 
       setProfile({ ...tempProfile });
       setEditModalVisible(false);
@@ -367,11 +370,11 @@ export default function ProfileScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.supportLabel, { color: theme.textSecondary }]}>Call Us</Text>
-                  <Text style={[styles.supportValue, { color: theme.text }]}>+91 98765 43210</Text>
+                  <Text style={[styles.supportValue, { color: theme.text }]}>+91 63049 82511</Text>
                 </View>
                 <TouchableOpacity 
                   style={[styles.supportActionBtn, { backgroundColor: '#10b981' }]}
-                  onPress={() => Linking.openURL('tel:+919876543210').catch(() => Alert.alert('Error', 'Could not open dialer'))}
+                  onPress={() => Linking.openURL('tel:+916304982511').catch(() => Alert.alert('Error', 'Could not open dialer'))}
                 >
                   <Text style={styles.supportActionText}>Call Admin</Text>
                 </TouchableOpacity>

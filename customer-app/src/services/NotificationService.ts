@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { monitor } from './MonitoringService';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace('/api/payment', '') || 'https://juice-app-9uzq.onrender.com';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace('/api/payment', '') || 'https://freshflow-backend-x29k.onrender.com';
 
 export interface OrderNotificationPayload {
   id: string;

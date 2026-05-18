@@ -62,9 +62,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Handle deep links from Google OAuth redirect (padmavati://)
+    const handleDeepLink = async (event: { url: string }) => {
+      console.log('[AUTH_DEEPLINK] Incoming redirect URL:', event.url);
+      if (!event.url) return;
+
+      const url = event.url;
+      const hashIndex = url.indexOf('#');
+      let searchString = '';
+      if (hashIndex !== -1) {
+        searchString = url.substring(hashIndex + 1);
+      } else {
+        const questionIndex = url.indexOf('?');
+        if (questionIndex !== -1) {
+          searchString = url.substring(questionIndex + 1);
+        }
+      }
+
+      if (searchString) {
+        const params: Record<string, string> = {};
+        const pairs = searchString.split('&');
+        for (const pair of pairs) {
+          const [key, value] = pair.split('=');
+          if (key && value) {
+            params[decodeURIComponent(key)] = decodeURIComponent(value);
+          }
+        }
+
+        if (params.access_token && params.refresh_token) {
+          console.log('[AUTH_DEEPLINK] Session tokens found, exchanging session...');
+          try {
+            setLoading(true);
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: params.access_token,
+              refresh_token: params.refresh_token,
+            });
+            if (sessionError) throw sessionError;
+            console.log('[AUTH_DEEPLINK] Session successfully exchanged and persisted!');
+          } catch (err: any) {
+            console.error('[AUTH_DEEPLINK_ERROR] Failed to exchange session:', err.message);
+            setLoading(false);
+          }
+        }
+      }
+    };
+
+    // Import expo-linking dynamically or statically
+    const Linking = require('expo-linking');
+    const subscriptionLink = Linking.addEventListener('url', handleDeepLink);
+
+    Linking.getInitialURL().then((url: string | null) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      subscriptionLink.remove();
     };
   }, []);
 

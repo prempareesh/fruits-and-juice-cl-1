@@ -43,7 +43,9 @@ export const AdminProductModal = ({ visible, onClose, onSuccess, product }: Admi
     quantity: '',
     image_url: '',
     is_featured: false,
-    is_trending: false
+    is_trending: false,
+    classic_price: '',
+    pure_price: ''
   });
 
   useEffect(() => {
@@ -59,7 +61,9 @@ export const AdminProductModal = ({ visible, onClose, onSuccess, product }: Admi
           quantity: product.quantity || '',
           image_url: product.image_url || '',
           is_featured: !!product.is_featured,
-          is_trending: !!product.is_trending
+          is_trending: !!product.is_trending,
+          classic_price: product.classic_price ? String(product.classic_price) : '',
+          pure_price: product.pure_price ? String(product.pure_price) : ''
         });
       } else {
         setFormData({
@@ -72,7 +76,9 @@ export const AdminProductModal = ({ visible, onClose, onSuccess, product }: Admi
           quantity: '1 kg',
           image_url: '',
           is_featured: false,
-          is_trending: false
+          is_trending: false,
+          classic_price: '',
+          pure_price: ''
         });
       }
     }
@@ -174,7 +180,7 @@ export const AdminProductModal = ({ visible, onClose, onSuccess, product }: Admi
         ? Math.round(((originalPriceVal - priceVal) / originalPriceVal) * 100) 
         : 0;
 
-      const payload = {
+      const payload: any = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         category: formData.category,
@@ -189,15 +195,43 @@ export const AdminProductModal = ({ visible, onClose, onSuccess, product }: Admi
         updated_at: new Date().toISOString()
       };
 
+      if (formData.category === 'Juices') {
+        payload.classic_price = priceVal; // Always equal to Selling Price!
+        payload.pure_price = formData.pure_price ? parseFloat(formData.pure_price) : null;
+      } else {
+        payload.classic_price = null;
+        payload.pure_price = null;
+      }
+
       console.log('[ADMIN_MODAL] Final Payload:', payload);
 
       let result;
-      if (product?.id) {
-        console.log('[ADMIN_MODAL] Updating existing product:', product.id);
-        result = await AdminProductService.updateProduct(product.id, payload);
-      } else {
-        console.log('[ADMIN_MODAL] Creating new product...');
-        result = await AdminProductService.createProduct(payload);
+      try {
+        if (product?.id) {
+          console.log('[ADMIN_MODAL] Updating existing product:', product.id);
+          result = await AdminProductService.updateProduct(product.id, payload);
+        } else {
+          console.log('[ADMIN_MODAL] Creating new product...');
+          result = await AdminProductService.createProduct(payload);
+        }
+      } catch (err: any) {
+        const errorMsg = err.message || '';
+        if (errorMsg.includes('classic_price') || errorMsg.includes('pure_price') || errorMsg.includes('PGRST204')) {
+          console.warn('[ADMIN_MODAL] Database columns missing. Stripping variant pricing fields and retrying...');
+          const fallbackPayload = { ...payload };
+          delete fallbackPayload.classic_price;
+          delete fallbackPayload.pure_price;
+
+          if (product?.id) {
+            console.log('[ADMIN_MODAL] Updating existing product (fallback):', product.id);
+            result = await AdminProductService.updateProduct(product.id, fallbackPayload);
+          } else {
+            console.log('[ADMIN_MODAL] Creating new product (fallback)...');
+            result = await AdminProductService.createProduct(fallbackPayload);
+          }
+        } else {
+          throw err;
+        }
       }
 
       console.log('[ADMIN_MODAL] Success!', result);
@@ -310,7 +344,7 @@ export const AdminProductModal = ({ visible, onClose, onSuccess, product }: Admi
                     onPress={() => {
                       let qty = formData.quantity;
                       if (cat === 'Fruits' || cat === 'Vegetables') qty = '1 kg';
-                      if (cat === 'Juices') qty = '350 ml';
+                      if (cat === 'Juices') qty = '300 ml';
                       setFormData(p => ({ ...p, category: cat, quantity: qty }));
                     }}
                   >
@@ -349,7 +383,7 @@ export const AdminProductModal = ({ visible, onClose, onSuccess, product }: Admi
                     placeholder="0.00"
                     keyboardType="numeric"
                     value={formData.price}
-                    onChangeText={v => setFormData(p => ({ ...p, price: v }))}
+                    onChangeText={v => setFormData(p => ({ ...p, price: v, classic_price: v }))}
                   />
                 </View>
               </View>
@@ -368,6 +402,42 @@ export const AdminProductModal = ({ visible, onClose, onSuccess, product }: Admi
                 </View>
               </View>
             </View>
+
+            {formData.category === 'Juices' && (
+              <Animated.View entering={FadeInDown} style={{ marginBottom: 20 }}>
+                <Text style={[styles.label, { color: '#10b981', marginTop: 10, fontSize: 15 }]}>JUICE VARIANTS</Text>
+                
+                <View style={styles.row}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.label}>Classic Price (₹)</Text>
+                    <View style={[styles.inputBox, { backgroundColor: '#f1f5f9' }]}>
+                      <DollarSign size={18} color="#94a3b8" />
+                      <TextInput 
+                        style={[styles.input, { color: '#64748b' }]} 
+                        placeholder="Classic Price"
+                        keyboardType="numeric"
+                        value={formData.price}
+                        editable={false}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                    <Text style={styles.label}>Pure Price (₹)</Text>
+                    <View style={styles.inputBox}>
+                      <DollarSign size={18} color="#94a3b8" />
+                      <TextInput 
+                        style={styles.input} 
+                        placeholder="Pure Price"
+                        keyboardType="numeric"
+                        value={formData.pure_price}
+                        onChangeText={v => setFormData(p => ({ ...p, pure_price: v }))}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </Animated.View>
+            )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Inventory Stock *</Text>

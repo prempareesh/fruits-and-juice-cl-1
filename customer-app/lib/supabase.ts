@@ -2,8 +2,8 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://scdtwgquzsqnlhqovxut.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_iOztVHha4OykToDX9WqsFw_Dr7NtFVx';
 
 /**
  * Permanent Supabase Client Configuration
@@ -30,7 +30,7 @@ export const safeQuery = async (queryFn: any, retries = 3) => {
       const { data, error } = await queryFn();
       if (!error) return { data, error: null };
       lastError = error;
-      
+
       // If it's a network error (no response or timeout), retry. 
       // Otherwise (404, 401, etc), return immediately.
       const isNetworkError = error.message?.includes('fetch') || error.code === 'PGRST301';

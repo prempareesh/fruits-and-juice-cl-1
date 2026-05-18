@@ -31,6 +31,7 @@ export const PremiumHeader = () => {
     <View style={[styles.outerContainer, { paddingTop: Math.max(insets.top, 12) }]}>
       <View style={styles.container}>
         <View style={styles.leftSection}>
+          <Text style={styles.storeName} numberOfLines={1}>Padmavati Fruits & Juices</Text>
           <Animated.View entering={FadeIn} style={[
             styles.deliveryBadge,
             !isServiceable && styles.unavailableBadge
@@ -112,6 +113,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'column',
     gap: 4,
+  },
+  storeName: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: COLORS.primaryGreen,
+    letterSpacing: -0.5,
+    marginBottom: 2,
   },
   deliveryBadge: {
     backgroundColor: COLORS.primaryGreen,

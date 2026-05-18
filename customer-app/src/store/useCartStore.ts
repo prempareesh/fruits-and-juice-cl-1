@@ -355,43 +355,41 @@ export const useCartStore = create<CartStore>()(
                 p_customer_name: customerName,
                 p_customer_phone: customerPhone
               };
+              console.log('[RPC_PRE-FLIGHT] Initiating checkout connection...');
+              
+              const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://scdtwgquzsqnlhqovxut.supabase.co';
+              const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_iOztVHha4OykToDX9WqsFw_Dr7NtFVx';
+              
+              // Bypasses supabase.auth.getSession() which can hang on locked local storage during glitches
+              const jwtToken = supabaseAnonKey;
 
-              // ── PROFILE INTEGRITY CHECK (NON-BLOCKING) ──────────────────────────
-              // Ensures a profile exists to prevent FK violation 23503 in the background.
-              supabase
-                .from('profiles')
-                .select('id')
-                .eq('id', userId)
-                .maybeSingle()
-                .then(({ data: profile, error: profileCheckError }) => {
-                  if (!profile || profileCheckError) {
-                    console.log('[CART_CHECKOUT] Profile missing, creating in background for:', userId);
-                    supabase.from('profiles').upsert({
-                      id: userId,
-                      full_name: customerName || 'Customer',
-                      role: 'customer',
-                      updated_at: new Date().toISOString()
-                    }).then(() => {
-                      console.log('[CART_CHECKOUT] Profile healing complete.');
-                    });
-                  }
-                })
-                .catch((err) => {
-                  console.warn('[CART_CHECKOUT] Profile sync background warning:', err);
-                });
- 
-              console.log('[RPC_PRE-FLIGHT] Calling place_order_v2 with payload:', JSON.stringify(payload, null, 2));
- 
-              const { data, error } = await supabase.rpc('place_order_v2', payload);
- 
-              if (error) {
-                console.error('[RPC_ERROR]', error);
-                let friendlyMessage = error.message;
-                if (error.code === '23503') friendlyMessage = "Profile sync error. Please try again.";
-                if (error.message?.includes('not found')) friendlyMessage = "Database sync required. Please contact support.";
- 
-                throw new Error(`${friendlyMessage} (Code: ${error.code})`);
+              console.log('[RPC_PRE-FLIGHT] Calling place_order_v2 via direct REST HTTP...');
+
+              const response = await fetch(`${supabaseUrl}/rest/v1/rpc/place_order_v2`, {
+                method: 'POST',
+                headers: {
+                  'apikey': supabaseAnonKey,
+                  'Authorization': `Bearer ${jwtToken}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'params=single-object'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                console.error('[RPC_ERROR] Direct REST HTTP rpc failed:', errData);
+                const errMsg = errData.message || `HTTP ${response.status}: Connection issues.`;
+                const errCode = errData.code || 'HTTP_ERROR';
+                
+                let friendlyMessage = errMsg;
+                if (errCode === '23503') friendlyMessage = "Profile sync error. Please try again.";
+                if (errMsg.includes('not found')) friendlyMessage = "Database sync required. Please contact support.";
+                
+                throw new Error(`${friendlyMessage} (Code: ${errCode})`);
               }
+
+              const data = await response.json();
  
               if (!data || !data.success) {
                 throw new Error(data?.message || 'Order placement failed on server.');

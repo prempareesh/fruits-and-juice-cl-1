@@ -19,6 +19,7 @@ import { useRouter } from 'expo-router';
 import { Mail, Lock, User, Phone } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Toast from 'react-native-toast-message';
+import { JuicyLogo } from '../src/components/JuicyLogo';
 
 /**
  * Permanent Signup Fix
@@ -108,11 +109,11 @@ export default function SignupScreen() {
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <Image 
-              source={require('../assets/logo.jpg')} 
+              source={require('../assets/logo.png')} 
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>Join FreshFlow</Text>
+            <Text style={[styles.title, { fontSize: 20 }]}>Join Padmavati Fresh</Text>
             <Text style={styles.subtitle}>Fresh Fruits, Vegetables & Juices Delivery</Text>
           </View>
 
@@ -179,7 +180,7 @@ export default function SignupScreen() {
               disabled={loading}
             >
               <LinearGradient colors={['#10b981', '#059669']} style={styles.gradient}>
-                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>Join FreshFlow</Text>}
+                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>Join Padmavati Fresh</Text>}
               </LinearGradient>
             </TouchableOpacity>
 

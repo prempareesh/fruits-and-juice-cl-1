@@ -5,7 +5,7 @@ CUSTOMER APP (Expo / EAS Build)
 ----------------------------------------------
 EXPO_PUBLIC_SUPABASE_URL: https://juozeonesytttmaizdso.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1b3plb25lc3l0dHRtYWl6ZHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1OTk4MjgsImV4cCI6MjA5MzE3NTgyOH0.dfWHMFp62ET2rGdKVlcLQgQ8ZV9PyMzivEexkZVY6n8
-EXPO_PUBLIC_API_URL: https://juice-app-9uzq.onrender.com/api/payment
+EXPO_PUBLIC_API_URL: https://freshflow-backend-x29k.onrender.com/api/payment
 EXPO_PUBLIC_RAZORPAY_KEY: rzp_test_SpzzTqML8dupQg
 
 RAZORPAY BACKEND (Render Dashboard)

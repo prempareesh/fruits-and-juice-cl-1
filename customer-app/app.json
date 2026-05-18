@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Juicy App",
+    "name": "AK fruits&juices",
     "slug": "juice-shop-customer",
     "version": "1.0.4",
     "orientation": "portrait",
@@ -8,18 +8,18 @@
     "userInterfaceStyle": "light",
     "sdkVersion": "52.0.0",
     "newArchEnabled": false,
-    "scheme": "juice-shop",
+    "scheme": "padmavati",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.preetham.juiceshop"
+      "bundleIdentifier": "com.freshflow.app"
     },
     "android": {
-      "package": "com.preetham.juiceshop",
+      "package": "com.freshflow.app",
       "versionCode": 5,
       "permissions": [
         "INTERNET",
@@ -29,22 +29,21 @@
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptiveicon.png",
         "backgroundColor": "#ffffff"
       },
       "intentFilters": [
         {
           "action": "VIEW",
           "data": {
-            "scheme": "juice-shop"
+            "scheme": "padmavati"
           },
           "category": [
             "BROWSABLE",
             "DEFAULT"
           ]
         }
-      ],
-      "edgeToEdgeEnabled": true
+      ]
     },
     "androidStatusBar": {
       "translucent": false,
@@ -82,9 +81,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "0da2100a-def5-4bc3-b6d2-d518be578c79"
+        "projectId": "a840c55d-f5b7-4f43-9e76-d767c6bf0cc8"
       }
     },
-    "owner": "bloodyyy"
+    "owner": "prem_pareesh"
   }
 }

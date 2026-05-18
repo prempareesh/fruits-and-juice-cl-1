@@ -20,11 +20,21 @@ export const ProductService = {
     if (variant) {
       if (variant.price) return variant.price;
       
-      // Dynamic logic: Pure Juice (very_pure) is 2x the base price
       const basePrice = product.selling_price || product.price || 70;
-      if (variant.variant_type === 'very_pure') {
-        return basePrice * 2;
+      
+      // Dynamic logic for juice variants (Classic vs Pure)
+      if (variant.id === 'classic' || variant.variant_type === 'normal') {
+        return product.classic_price !== null && product.classic_price !== undefined && product.classic_price !== ''
+          ? parseFloat(product.classic_price)
+          : basePrice;
       }
+      
+      if (variant.id === 'pure' || variant.variant_type === 'very_pure') {
+        return product.pure_price !== null && product.pure_price !== undefined && product.pure_price !== ''
+          ? parseFloat(product.pure_price)
+          : basePrice; // Fallback safely to normal selling price
+      }
+      
       return basePrice;
     }
 

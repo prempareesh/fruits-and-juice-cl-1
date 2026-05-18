@@ -98,8 +98,6 @@ export const LocationService = {
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
       
-      // EXTREMELY IMPORTANT: On Web, setting 'User-Agent' causes a forbidden header error.
-      // However, Nominatim policy asks for one. We'll only set it on Native platforms.
       const headers: any = {
         'Accept': 'application/json',
       };
@@ -109,7 +107,7 @@ export const LocationService = {
       }
 
       const { data } = await axios.get(url, { 
-        timeout: 20000, // Increased for stability
+        timeout: 20000,
         headers 
       });
 
@@ -121,6 +119,18 @@ export const LocationService = {
         message: err?.message,
         code: err?.code 
       });
+    }
+
+    // 3. Native Expo Geocode
+    if (Platform.OS !== 'web') {
+      try {
+        const results = await Location.geocodeAsync(address);
+        if (results && results.length > 0) {
+          return { latitude: results[0].latitude, longitude: results[0].longitude };
+        }
+      } catch (err) {
+        monitor.log('WARN', 'Location', 'Expo Native Geocode failed', { err });
+      }
     }
 
     return null;

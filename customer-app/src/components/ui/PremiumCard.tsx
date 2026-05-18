@@ -133,6 +133,23 @@ const PremiumCard: React.FC<PremiumCardProps> = ({
             <Text style={styles.subtitle}>{subtitle || '500g'}</Text>
           </View>
 
+          {isJuice && !isOutOfStock && (
+            <View style={styles.variantPicker}>
+              <TouchableOpacity 
+                style={[styles.variantTab, selectedJuiceType === 'normal' && styles.variantTabActive]}
+                onPress={(e) => { e.stopPropagation(); setSelectedJuiceType('normal'); }}
+              >
+                <Text style={[styles.variantTabText, selectedJuiceType === 'normal' && styles.variantTabTextActive]}>Classic</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.variantTab, selectedJuiceType === 'very_pure' && styles.variantTabActive]}
+                onPress={(e) => { e.stopPropagation(); setSelectedJuiceType('very_pure'); }}
+              >
+                <Text style={[styles.variantTabText, selectedJuiceType === 'very_pure' && styles.variantTabTextActive]}>Pure</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.footer}>
             <View style={styles.priceContainer}>
               <Text style={[styles.price, isDisabled && styles.textMuted]}>{ProductService.formatPrice(currentPrice)}</Text>
@@ -142,22 +159,6 @@ const PremiumCard: React.FC<PremiumCardProps> = ({
             </View>
 
             <View style={styles.actionArea}>
-              {isJuice && !isOutOfStock && (
-                <View style={styles.variantPicker}>
-                  <TouchableOpacity 
-                    style={[styles.variantTab, selectedJuiceType === 'normal' && styles.variantTabActive]}
-                    onPress={(e) => { e.stopPropagation(); setSelectedJuiceType('normal'); }}
-                  >
-                    <Text style={[styles.variantTabText, selectedJuiceType === 'normal' && styles.variantTabTextActive]}>Classic</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.variantTab, selectedJuiceType === 'very_pure' && styles.variantTabActive]}
-                    onPress={(e) => { e.stopPropagation(); setSelectedJuiceType('very_pure'); }}
-                  >
-                    <Text style={[styles.variantTabText, selectedJuiceType === 'very_pure' && styles.variantTabTextActive]}>Pure</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
 
               {!isOutOfStock ? (
                 currentCartQty > 0 && !isStoreClosed ? (
@@ -229,7 +230,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.sm,
-    height: 250,
+    minHeight: 260,
     ...SHADOWS.sm,
   },
   cardDisabled: {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, useWindowDimensions, TouchableOpacity, Text, ActivityIndicator, Platform, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Slot, useRouter, usePathname } from 'expo-router';
 import { 
   LayoutDashboard, 
@@ -32,6 +33,7 @@ export default function AdminLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isDesktop = width >= 768;
   
   const { session, role, loading, signOut } = useAuth();
@@ -66,7 +68,7 @@ export default function AdminLayout() {
     <View style={styles.container}>
       {/* Mobile Header */}
       {!isDesktop && (
-        <View style={styles.mobileHeader}>
+        <View style={[styles.mobileHeader, { paddingTop: insets.top, height: 60 + insets.top }]}>
           <TouchableOpacity onPress={() => setSidebarOpen(true)} style={styles.menuBtn}>
             <Menu size={24} color="#1e293b" />
           </TouchableOpacity>
@@ -80,7 +82,7 @@ export default function AdminLayout() {
         {(sidebarOpen || isDesktop) && (
           <View style={[styles.sidebar, !isDesktop && styles.mobileSidebar]}>
             <View style={styles.sidebarHeader}>
-              <Text style={styles.sidebarTitle}>FreshFlow</Text>
+              <Text style={styles.sidebarTitle}>Padmavati</Text>
               <Text style={styles.sidebarSubtitle}>Admin Dashboard</Text>
               {!isDesktop && (
                 <TouchableOpacity onPress={() => setSidebarOpen(false)} style={styles.closeBtn}>

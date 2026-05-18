@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
   store_lat NUMERIC,
   store_lng NUMERIC,
   delivery_slots JSONB DEFAULT '["08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 20:00", "20:00 - 22:00"]'::jsonb,
-  support_phone TEXT DEFAULT '+91 98765 43210',
+  support_phone TEXT DEFAULT '+91 63049 82511',
   estimated_delivery_time TEXT DEFAULT '30-45 mins',
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );

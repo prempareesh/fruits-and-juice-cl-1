@@ -137,7 +137,18 @@ export const LocationModal = ({ visible, onClose }: LocationModalProps) => {
     const fullAddr = `${manualAddr.house}, ${manualAddr.street}, ${manualAddr.area}, ${manualAddr.city} - ${manualAddr.pincode}`;
     setLoading(true);
     try {
-      const coords = await LocationService.geocode(fullAddr);
+      let coords = await LocationService.geocode(fullAddr);
+      
+      // Fallback 1: Area + City + Pincode
+      if (!coords && manualAddr.area && manualAddr.city) {
+        coords = await LocationService.geocode(`${manualAddr.area}, ${manualAddr.city} ${manualAddr.pincode}`);
+      }
+      
+      // Fallback 2: City + Pincode
+      if (!coords && manualAddr.city) {
+        coords = await LocationService.geocode(`${manualAddr.city} ${manualAddr.pincode}`);
+      }
+
       if (coords) {
         await setSelectedAddress({
           formattedAddress: fullAddr,
@@ -154,10 +165,10 @@ export const LocationModal = ({ visible, onClose }: LocationModalProps) => {
         });
         onClose();
       } else {
-        setErrorMsg('Could not find this location. Please check the details.');
+        setErrorMsg('Could not find this location. Please check the details or enter a nearby landmark.');
       }
     } catch (err) {
-      setErrorMsg('Error saving address.');
+      setErrorMsg('Error saving address. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,8 @@
 -- ==========================================
 -- JUICY APP: PRODUCTION SAFE DELETE RPC
 -- Allows admins to delete products spontaneously 
--- by handling all dependencies (variants, orders) atomically.
+-- by handling all dependencies (variants, orders) atomically
+-- and avoiding relation parse errors using dynamic SQL.
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.delete_product_v1(p_product_id UUID)
@@ -32,17 +33,25 @@ BEGIN
     );
   END IF;
 
-  -- 3. ATOMIC CLEANUP: Delete all related data first
-  -- A. Delete associated Juice Variants
-  DELETE FROM public.juice_variants WHERE product_id = p_product_id;
+  -- A. Delete associated Juice Variants (if table exists)
+  IF EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'juice_variants'
+  ) THEN
+    EXECUTE 'DELETE FROM public.juice_variants WHERE product_id = $1' USING p_product_id;
+  END IF;
 
   -- B. Delete associated Order Items
-  -- Note: We delete these to satisfy foreign key constraints. 
   DELETE FROM public.order_items WHERE product_id = p_product_id;
 
   -- C. Delete associated reviews/ratings (if table exists)
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'product_reviews') THEN
-    DELETE FROM public.product_reviews WHERE product_id = p_product_id;
+  IF EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'product_reviews'
+  ) THEN
+    EXECUTE 'DELETE FROM public.product_reviews WHERE product_id = $1' USING p_product_id;
   END IF;
 
   -- 4. FINAL PURGE: Delete the product itself
