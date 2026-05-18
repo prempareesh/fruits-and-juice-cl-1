@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import * as Haptics from 'expo-haptics';
 import {
   StyleSheet,
   View,
@@ -236,7 +237,6 @@ export default function PaymentScreen() {
 
     if (Platform.OS !== 'web') {
       try {
-        const Haptics = require('expo-haptics');
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       } catch { }
     }
@@ -293,8 +293,9 @@ export default function PaymentScreen() {
         console.warn('[Payment] Background verification logged with warning:', e.message);
       });
 
-      // Save order to the database instantly
-      const dbOrderId = await placeOrder(
+      // Save order to the database instantly with an 8-second safety timeout
+      // to ensure the user is never stuck forever on the verification screen due to database/network locks.
+      const orderPlacementPromise = placeOrder(
         uId,
         String(address || 'Online Order'),
         'online',
@@ -307,6 +308,12 @@ export default function PaymentScreen() {
         String(name || 'Customer'),
         String(contact || '')
       );
+
+      const timeoutPromise = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('Order creation timed out. Please click below to complete.')), 8000)
+      );
+
+      const dbOrderId = await Promise.race([orderPlacementPromise, timeoutPromise]);
 
       if (!dbOrderId) throw new Error('Payment verified, but failed to save order to database. Please contact support.');
 
@@ -327,8 +334,11 @@ export default function PaymentScreen() {
       setPaymentState('PAYMENT_SUCCESS');
       clearCart();
 
-      // Navigate immediately
-      router.replace({ pathname: '/success', params: { orderId: dbOrderId } } as any);
+      // Defer navigation slightly (300ms) to allow React to mount the checkmark animation,
+      // unmount the WebView safely, and complete the transition smoothly without race conditions.
+      setTimeout(() => {
+        router.replace(`/success?orderId=${dbOrderId}` as any);
+      }, 300);
     } catch (err: any) {
       console.error('[Payment] Finalize failed:', err.message);
       setPaymentState('PAYMENT_FAILED');
